@@ -1,0 +1,13 @@
+{
+  "name": "bff-graphql-gateway",
+  "version": "1.0.0",
+  "description": "API Gateway BFF con GraphQL para el Sistema de Gestión Empresarial (ERP)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@apollo/server": "^4.10.0",
+    "graphql": "^16.8.1"
+  }
+}

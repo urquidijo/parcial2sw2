@@ -1,0 +1,131 @@
+"""
+Estado de la propiedad inmobiliaria
+"""
+enum PropertyStatus {
+  DISPONIBLE
+  RESERVADO_PENDIENTE
+  RESERVADO_CONFIRMADO
+  VENDIDO
+  ALQUILADO
+}
+
+enum PropertyType {
+  DEPARTAMENTO
+  CASA
+  TERRENO
+  OFICINA
+  LOCAL_COMERCIAL
+}
+
+enum ContractType {
+  PROMESA_COMPRAVENTA
+  ARRENDAMIENTO
+  EXCLUSIVIDAD_VENTA
+  RESERVA_CON_ARRAS
+}
+
+enum ContractStatus {
+  BORRADOR
+  PENDIENTE_FIRMA
+  FIRMADO
+  CANCELADO
+  RECHAZADO
+}
+
+type Property {
+  id: ID!
+  code: String!
+  title: String!
+  description: String
+  propertyType: PropertyType!
+  status: PropertyStatus!
+  price: Float!
+  currency: String!
+  areaSquareMeters: Float!
+  rooms: Int
+  bathrooms: Int
+  parkingSlots: Int
+  address: String!
+  city: String!
+  zone: String
+  amenities: [String!]
+  photos: [String!]
+}
+
+type Contract {
+  id: ID!
+  contractNumber: String!
+  contractType: ContractType!
+  status: ContractStatus!
+  propertyId: String!
+  property: Property
+  clientId: String!
+  agentId: String
+  paymentReferenceId: String
+  totalAmount: Float!
+  downPayment: Float!
+  legalClauses: String
+  cancellationReason: String
+  createdAt: String
+}
+
+type CommissionSummary {
+  agentId: String!
+  totalEarnedYTD: Float!
+  pendingPayout: Float!
+  completedDealsCount: Int!
+  tier: String!
+}
+
+input CreateContractInput {
+  propertyId: String!
+  clientId: String!
+  agentId: String
+  contractType: ContractType!
+  totalAmount: Float!
+  downPayment: Float!
+  legalClauses: String
+}
+
+input InitiateReservationSagaInput {
+  propertyId: String!
+  clientId: String!
+  depositAmount: Float!
+  totalAmount: Float!
+}
+
+type SagaResult {
+  success: Boolean!
+  message: String!
+  propertyId: String!
+  paymentId: String
+  contractNumber: String
+}
+
+type Query {
+  # ERP: Consultar lista de contratos con sus propiedades anidadas
+  contracts(status: ContractStatus): [Contract!]!
+  
+  # ERP: Detalle de contrato específico
+  contract(id: ID!): Contract
+  
+  # ERP: Consultar catálogo de propiedades
+  properties(status: PropertyStatus, city: String): [Property!]!
+  
+  # ERP: Detalle de una propiedad
+  property(id: ID!): Property
+  
+  # ERP: Resumen de comisiones por agente
+  agentCommissions(agentId: String!): CommissionSummary
+}
+
+type Mutation {
+  # Crear contrato ordinario
+  createContract(input: CreateContractInput!): Contract!
+  
+  # Disparar la transacción Saga transversal de reserva de inmueble
+  initiateReservationSaga(input: InitiateReservationSagaInput!): SagaResult!
+  
+  # Cancelar contrato
+  cancelContract(id: ID!, reason: String): Contract!
+}

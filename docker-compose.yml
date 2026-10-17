@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # 1. Base de datos Relacional: PostgreSQL (Para ms-contracts - Spring Boot)
+  postgres-contracts:
+    image: postgres:16-alpine
+    container_name: proptech-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: contracts_db
+      POSTGRES_USER: proptech_admin
+      POSTGRES_PASSWORD: admin_secure_password
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - proptech-network
+
+  # 2. Base de datos Documental: MongoDB (Para ms-properties - NestJS)
+  mongo-properties:
+    image: mongo:7.0
+    container_name: proptech-mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: proptech_admin
+      MONGO_INITDB_ROOT_PASSWORD: admin_secure_password
+      MONGO_INITDB_DATABASE: properties_catalog_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - proptech-network
+
+  # 3. Base de datos NoSQL Clave-Valor/Baja Latencia: DynamoDB Local (Para ms-billing-commissions - PHP)
+  dynamodb-billing:
+    image: amazon/dynamodb-local:latest
+    container_name: proptech-dynamodb
+    restart: always
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /data"
+    ports:
+      - "8005:8000"
+    volumes:
+      - dynamodb_data:/data
+    networks:
+      - proptech-network
+
+  # 4. Identity & Access Management (SSO): Keycloak
+  keycloak-sso:
+    image: quay.io/keycloak/keycloak:24.0.2
+    container_name: proptech-keycloak
+    restart: always
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin_keycloak_password
+    ports:
+      - "8080:8080"
+    networks:
+      - proptech-network
+
+volumes:
+  postgres_data:
+    driver: local
+  mongo_data:
+    driver: local
+  dynamodb_data:
+    driver: local
+
+networks:
+  proptech-network:
+    driver: bridge

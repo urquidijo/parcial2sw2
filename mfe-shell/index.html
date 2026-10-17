@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Habitat Pro | Plataforma Inmobiliaria Empresarial</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-page: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-alt: #f1f5f9;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+      
+      --brand: #0284c7;
+      --brand-hover: #0369a1;
+      --brand-light: #e0f2fe;
+      
+      --emerald: #059669;
+      --emerald-light: #ecfdf5;
+      --amber: #d97706;
+      --amber-light: #fffbeb;
+      --rose: #e11d48;
+      --rose-light: #fff1f2;
+      --indigo: #4f46e5;
+      --indigo-light: #eef2ff;
+
+      --border: #e2e8f0;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04);
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Top Sub-Bar */
+    .top-utility {
+      background: #0f172a;
+      color: #94a3b8;
+      padding: 0.4rem 2rem;
+      font-size: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .db-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.15rem 0.6rem;
+      border-radius: 9999px;
+      font-weight: 700;
+      font-size: 0.7rem;
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+    }
+
+    /* Header & Navigation */
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      padding: 0.85rem 2rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand-area {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: var(--text-main);
+      cursor: pointer;
+    }
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--brand), #0369a1);
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 1.25rem;
+      box-shadow: 0 4px 10px -2px rgba(2, 132, 199, 0.4);
+    }
+    .brand-title h1 { font-size: 1.2rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+    .brand-title span { font-size: 0.7rem; color: var(--text-muted); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    nav.main-nav {
+      display: flex;
+      gap: 0.4rem;
+      background: #f1f5f9;
+      padding: 0.25rem;
+      border-radius: 10px;
+    }
+    .nav-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.55rem 1.1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .nav-btn:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.7); }
+    .nav-btn.active {
+      background: #ffffff;
+      color: var(--brand);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .user-zone {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .user-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 30px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+    }
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--brand-light);
+      color: var(--brand);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
+    .user-info { display: flex; flex-direction: column; }
+    .user-info .name { font-size: 0.82rem; font-weight: 700; color: var(--text-main); }
+    .user-info .role { font-size: 0.7rem; color: var(--emerald); font-weight: 600; }
+    .btn-logout {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-logout:hover { background: var(--rose-light); color: var(--rose); border-color: #fecdd3; }
+
+    /* App Shell */
+    main.app-shell {
+      flex: 1;
+      padding: 2rem;
+      max-width: 1440px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+    }
+
+    /* Common Buttons */
+    .btn {
+      background: var(--brand);
+      color: #ffffff;
+      border: 1px solid transparent;
+      padding: 0.65rem 1.25rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .btn:hover { background: var(--brand-hover); transform: translateY(-1px); }
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #334155;
+      border-color: #cbd5e1;
+    }
+    .btn-secondary:hover { background: #e2e8f0; color: #0f172a; }
+    .btn-emerald {
+      background: var(--emerald);
+      color: #fff;
+    }
+    .btn-emerald:hover { background: #047857; }
+    .btn-indigo {
+      background: var(--indigo);
+      color: #fff;
+    }
+    .btn-indigo:hover { background: #4338ca; }
+
+    /* Filter Bar for Catalog */
+    .filter-bar {
+      display: flex;
+      gap: 1rem;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+      box-shadow: var(--shadow-sm);
+    }
+    .search-input {
+      flex: 1;
+      min-width: 260px;
+      padding: 0.65rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.88rem;
+      outline: none;
+      font-family: inherit;
+    }
+    .search-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15); }
+    .filter-select {
+      padding: 0.65rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      color: var(--text-main);
+      background: #ffffff;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* Property Cards Grid */
+    .properties-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 1.75rem;
+    }
+    .property-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.25s ease;
+    }
+    .property-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md);
+      border-color: #cbd5e1;
+    }
+    .property-img {
+      height: 210px;
+      position: relative;
+      background: #e2e8f0;
+      overflow: hidden;
+    }
+    .property-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.4s ease;
+    }
+    .badge-status {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+    .status-disponible { background: #0f172a; color: #ffffff; }
+    .status-reservado { background: var(--amber); color: #ffffff; }
+    .status-comprado { background: var(--emerald); color: #ffffff; }
+
+    .price-pill {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      background: #ffffff;
+      padding: 0.4rem 0.85rem;
+      border-radius: 8px;
+      color: var(--emerald);
+      font-weight: 800;
+      font-size: 1.15rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .property-content {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      gap: 0.6rem;
+    }
+    .property-title { font-size: 1.05rem; font-weight: 700; color: var(--text-main); }
+    .property-addr { font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem; }
+    .specs-row {
+      display: flex;
+      gap: 1.25rem;
+      padding: 0.75rem 0;
+      border-top: 1px dashed var(--border);
+      border-bottom: 1px dashed var(--border);
+      margin: 0.5rem 0;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Tables */
+    .data-table-wrapper {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow-x: auto;
+      background: #ffffff;
+      box-shadow: var(--shadow-sm);
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+    table.data-table th {
+      background: #f8fafc;
+      padding: 0.9rem 1.25rem;
+      color: var(--text-muted);
+      font-weight: 700;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border);
+    }
+    table.data-table td {
+      padding: 1.1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-main);
+    }
+    table.data-table tr:hover td { background: #f8fafc; }
+    table.data-table tr:last-child td { border-bottom: none; }
+
+    /* KPI Summary Cards */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.75rem;
+    }
+    .kpi-item {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .kpi-item .label { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; }
+    .kpi-item .value { font-size: 1.75rem; font-weight: 800; color: var(--text-main); }
+    .kpi-item .sub { font-size: 0.75rem; color: var(--emerald); font-weight: 600; }
+
+    /* Modals */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+      display: none;
+      place-items: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+    .modal-backdrop.open { display: grid; }
+    .modal-window {
+      background: #ffffff;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 580px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: modalFadeIn 0.2s ease-out;
+    }
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .modal-head {
+      padding: 1.5rem 1.75rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-head h3 { font-size: 1.15rem; font-weight: 800; color: var(--text-main); }
+    .modal-body {
+      padding: 1.5rem 1.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      max-height: 75vh;
+      overflow-y: auto;
+    }
+    .modal-foot {
+      padding: 1.25rem 1.75rem;
+      background: #f8fafc;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+    }
+
+    /* Form Controls */
+    .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+    .form-group label { font-size: 0.8rem; font-weight: 700; color: var(--text-main); }
+    .form-control {
+      padding: 0.65rem 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      outline: none;
+    }
+    .form-control:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15); }
+
+    /* Login Screen Container */
+    .login-container {
+      max-width: 490px;
+      margin: 3rem auto;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2.5rem;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .login-header { text-align: center; }
+    .login-header h2 { font-size: 1.5rem; font-weight: 800; color: var(--text-main); }
+    .login-header p { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem; }
+
+    .auth-tab-switch {
+      display: flex;
+      background: #f1f5f9;
+      border-radius: 8px;
+      padding: 0.25rem;
+    }
+    .auth-tab-btn {
+      flex: 1;
+      padding: 0.5rem;
+      border: none;
+      background: transparent;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .auth-tab-btn.active {
+      background: #ffffff;
+      color: var(--brand);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .role-btn-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #ffffff;
+    }
+    .role-btn-card:hover {
+      border-color: var(--brand);
+      background: var(--brand-light);
+      transform: translateX(3px);
+    }
+
+    /* Toast Notification */
+    .toast-msg {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #0f172a;
+      color: #ffffff;
+      padding: 1rem 1.5rem;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      z-index: 2000;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s ease;
+    }
+    .toast-msg.show { transform: translateY(0); opacity: 1; }
+
+    .role-badge {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .role-cliente { background: #e0f2fe; color: #0284c7; }
+    .role-agente { background: #dcfce7; color: #059669; }
+    .role-legal { background: #ffe4e6; color: #e11d48; }
+    .role-admin { background: #ede9fe; color: #7c3aed; }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Utilities -->
+  <div class="top-utility">
+    <div>
+      <strong>Habitat Pro</strong> &bull; Sistema Integrado de Operaciones Inmobiliarias
+    </div>
+    <div style="display: flex; gap: 1rem; align-items: center;">
+      <span class="db-badge">🐘 PostgreSQL :5435</span>
+      <span class="db-badge">🍃 MongoDB :27017</span>
+      <span class="db-badge">⚡ DynamoDB :8005</span>
+      <span>🟢 RBAC Activo</span>
+    </div>
+  </div>
+
+  <!-- PANTALLA 1: INICIO DE SESIÓN / REGISTRO DE COMPRADOR -->
+  <div id="loginScreen" class="login-container">
+    <div class="login-header">
+      <div class="brand-icon" style="margin: 0 auto 1rem; width: 48px; height: 48px; font-size: 1.5rem;">🏛️</div>
+      <h2>Acceso al Sistema</h2>
+      <p>Autenticación con roles RBAC conectada a PostgreSQL</p>
+    </div>
+
+    <!-- Selector entre Iniciar Sesión y Crear Cuenta -->
+    <div class="auth-tab-switch">
+      <button class="auth-tab-btn active" id="btnModeLogin" onclick="setAuthMode('login')">Iniciar Sesión</button>
+      <button class="auth-tab-btn" id="btnModeRegister" onclick="setAuthMode('register')">Crear Cuenta (Comprador)</button>
+    </div>
+
+    <!-- FORMULARIO 1: INICIO DE SESIÓN -->
+    <form id="formLogin" onsubmit="event.preventDefault(); loginConCredenciales();" style="display:flex; flex-direction:column; gap:0.85rem;">
+      <div class="form-group">
+        <label>Correo Electrónico Corporativo</label>
+        <input type="email" id="loginEmail" class="form-control" placeholder="ej. juan.comprador@habitat.pro" required>
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" id="loginPass" class="form-control" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn" style="margin-top:0.3rem;">Ingresar al Portal</button>
+    </form>
+
+    <!-- FORMULARIO 2: REGISTRO DE CUENTA (SE CREA OBLIGATORIAMENTE COMO COMPRADOR) -->
+    <form id="formRegister" class="hidden" onsubmit="event.preventDefault(); registrarNuevoComprador();" style="display:flex; flex-direction:column; gap:0.85rem;">
+      <div class="form-group">
+        <label>Nombre Completo</label>
+        <input type="text" id="regName" class="form-control" placeholder="ej. Roberto Gómez" required>
+      </div>
+      <div class="form-group">
+        <label>Correo Electrónico</label>
+        <input type="email" id="regEmail" class="form-control" placeholder="roberto.gomez@gmail.com" required>
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" id="regPass" class="form-control" placeholder="Crear contraseña segura" required>
+      </div>
+      <div style="font-size:0.75rem; color:var(--text-muted); background:#f1f5f9; padding:0.6rem; border-radius:6px;">
+        ℹ️ Por regla de negocio, tu cuenta será asignada con el rol <strong>Comprador (Cliente Inversionista)</strong>. Solo un Administrador puede asignarte rol de Agente o Notario.
+      </div>
+      <button type="submit" class="btn btn-emerald" style="margin-top:0.3rem;">Crear mi Cuenta de Comprador</button>
+    </form>
+
+    <div id="quickLoginSection">
+      <div style="text-align:center; font-size:0.75rem; color:var(--text-muted); margin: 0.5rem 0;">
+        &mdash; ACCESO RÁPIDO SEGÚN ROL &mdash;
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <div class="role-btn-card" onclick="loginDirecto('juan.comprador@habitat.pro')">
+          <div class="user-avatar" style="background:#e0f2fe; color:#0284c7;">JC</div>
+          <div>
+            <div style="font-weight:700; font-size:0.85rem;">Juan Comprador</div>
+            <div style="font-size:0.72rem; color:var(--text-muted);">Rol: CLIENTE &bull; Catálogo, Reservas y Contratos Propios</div>
+          </div>
+        </div>
+
+        <div class="role-btn-card" onclick="loginDirecto('carlos.broker@habitat.pro')">
+          <div class="user-avatar" style="background:#dcfce7; color:#059669;">CB</div>
+          <div>
+            <div style="font-weight:700; font-size:0.85rem;">Carlos Broker</div>
+            <div style="font-size:0.72rem; color:var(--text-muted);">Rol: AGENTE &bull; Publicar Inmuebles, Clientes y Comisiones</div>
+          </div>
+        </div>
+
+        <div class="role-btn-card" onclick="loginDirecto('elena.ramos@habitat.pro')">
+          <div class="user-avatar" style="background:#ffe4e6; color:#e11d48;">ER</div>
+          <div>
+            <div style="font-weight:700; font-size:0.85rem;">Dra. Elena Ramos</div>
+            <div style="font-size:0.72rem; color:var(--text-muted);">Rol: LEGAL &bull; ERP Contractual y Fe Pública Notarial</div>
+          </div>
+        </div>
+
+        <div class="role-btn-card" onclick="loginDirecto('admin@habitat.pro')">
+          <div class="user-avatar" style="background:#ede9fe; color:#7c3aed;">AD</div>
+          <div>
+            <div style="font-weight:700; font-size:0.85rem;">Administrador Principal</div>
+            <div style="font-size:0.72rem; color:var(--text-muted);">Rol: ADMIN &bull; Gestión de Usuarios, Roles y Finanzas</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANTALLA 2: SISTEMA PRINCIPAL (Sesión Activa con Control RBAC) -->
+  <div id="appContainer" class="hidden">
+    <!-- Header Principal -->
+    <header>
+      <div class="brand-area" onclick="navigate('catalogo')">
+        <div class="brand-icon">🏛️</div>
+        <div class="brand-title">
+          <h1>Habitat Pro</h1>
+          <span>Inmobiliaria & Legal</span>
+        </div>
+      </div>
+
+      <!-- Navegación por Módulos Dinámica según Rol -->
+      <nav class="main-nav" id="mainNavBar">
+        <!-- Renderizado dinámicamente según permisos -->
+      </nav>
+
+      <!-- Perfil y Logout -->
+      <div class="user-zone">
+        <div class="user-pill">
+          <div class="user-avatar" id="headerAvatar">JC</div>
+          <div class="user-info">
+            <span class="name" id="headerUserName">Juan Comprador</span>
+            <span class="role" id="headerUserRole">Cliente Inversionista</span>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">Cerrar Sesión</button>
+      </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="app-shell">
+      
+      <!-- SECCIÓN 1: CATÁLOGO DE INMUEBLES -->
+      <section id="viewCatalogo">
+        <div class="panel-header">
+          <div>
+            <h2>Catálogo de Propiedades</h2>
+            <p>Inmuebles residenciales y comerciales disponibles para compra y reserva.</p>
+          </div>
+          <!-- Botón disponible solo para AGENTE y ADMIN -->
+          <button class="btn btn-emerald hidden" id="btnCrearPropiedad" onclick="abrirModalNuevaPropiedad()">
+            + Publicar Inmueble
+          </button>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filter-bar">
+          <input type="text" id="searchInput" class="search-input" placeholder="🔍 Buscar por nombre, zona o ciudad (ej. Calacoto, Equipetrol)..." oninput="applyFilters()">
+          <select id="typeFilter" class="filter-select" onchange="applyFilters()">
+            <option value="ALL">Todos los tipos</option>
+            <option value="DEPARTAMENTO">Departamentos</option>
+            <option value="CASA">Casas</option>
+            <option value="TERRENO">Terrenos</option>
+          </select>
+          <select id="statusFilter" class="filter-select" onchange="applyFilters()">
+            <option value="ALL">Todos los estados</option>
+            <option value="DISPONIBLE">Disponibles</option>
+            <option value="RESERVADO">En Reserva</option>
+            <option value="COMPRADO">Comprados</option>
+          </select>
+        </div>
+
+        <!-- Grilla de Inmuebles -->
+        <div class="properties-grid" id="propertiesList">
+          <div style="padding:2rem; color:var(--text-muted);">Cargando catálogo desde la base de datos...</div>
+        </div>
+      </section>
+
+      <!-- SECCIÓN 2: RESERVAS Y OPERACIONES -->
+      <section id="viewReservas" class="hidden">
+        <div class="panel-header">
+          <div>
+            <h2 id="titleReservas">Mis Reservas y Operaciones</h2>
+            <p id="descReservas">Reservas activas bajo garantía notarial con TTL de 48 horas en DynamoDB.</p>
+          </div>
+        </div>
+
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Código Reserva</th>
+                <th>Inmueble</th>
+                <th>Titular</th>
+                <th>Depósito de Arras</th>
+                <th>Estado</th>
+                <th>Vigencia Notarial</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="reservasTableBody">
+              <!-- Renderizado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- SECCIÓN 3: CONTRATOS Y MINUTAS LEGALES -->
+      <section id="viewContratos" class="hidden">
+        <div class="panel-header">
+          <div>
+            <h2 id="titleContratos">Contratos y Documentación Legal Notarial</h2>
+            <p id="descContratos">Minutas y protocolos con control de firmas calificada en PostgreSQL ACID.</p>
+          </div>
+        </div>
+
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Expediente</th>
+                <th>Inmueble</th>
+                <th>Tipo de Contrato</th>
+                <th>Valor Total</th>
+                <th>Estado Notarial</th>
+                <th>Firmas Asentadas</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="contratosTableBody">
+              <!-- Renderizado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- SECCIÓN 4: FINANZAS Y COMISIONES (Para ADMIN y AGENTE) -->
+      <section id="viewFinanzas" class="hidden">
+        <div class="panel-header">
+          <div>
+            <h2>Panel Financiero y Liquidación de Comisiones</h2>
+            <p>Métricas de operaciones, retenciones impositivas y libro de caja.</p>
+          </div>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-item">
+            <span class="label">Volumen Total Operado</span>
+            <span class="value" id="kpiTotalVolume">$1,145,000</span>
+            <span class="sub">Cartera activa en MongoDB/Postgres</span>
+          </div>
+          <div class="kpi-item">
+            <span class="label" id="labelComisiones">Comisiones Liquidadas</span>
+            <span class="value" id="kpiCommissions">$26,450.00</span>
+            <span class="sub">3% Venta / 50% Alquiler</span>
+          </div>
+          <div class="kpi-item">
+            <span class="label">Arras en Custodia</span>
+            <span class="value" id="kpiArras">$30,000.00</span>
+            <span class="sub">Garantías activas en DynamoDB</span>
+          </div>
+        </div>
+
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Comprobante</th>
+                <th>Concepto</th>
+                <th>Inmueble</th>
+                <th>Monto</th>
+                <th>Método de Pago</th>
+                <th>Fecha de Registro</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="finanzasTableBody">
+              <!-- Renderizado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- SECCIÓN 5: GESTIÓN DE USUARIOS Y ROLES (EXCLUSIVO PARA ADMINISTRADOR) -->
+      <section id="viewUsuarios" class="hidden">
+        <div class="panel-header">
+          <div>
+            <h2>Gestión de Cuentas de Usuario y Roles (RBAC)</h2>
+            <p>Control de acceso corporativo en PostgreSQL. Asigna o modifica roles a usuarios del sistema.</p>
+          </div>
+        </div>
+
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID Usuario</th>
+                <th>Nombre</th>
+                <th>Correo Electrónico</th>
+                <th>Rol Actual</th>
+                <th>Fecha de Alta</th>
+                <th>Modificar Rol en BD</th>
+              </tr>
+            </thead>
+            <tbody id="usuariosTableBody">
+              <!-- Renderizado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL: FORMALIZAR RESERVA CON ARRAS (CLIENTE / COMPRADOR) -->
+  <div class="modal-backdrop" id="modalReserva">
+    <div class="modal-window">
+      <div class="modal-head">
+        <h3 id="modalReservaTitle">Formalizar Reserva de Inmueble</h3>
+        <button style="background:none; border:none; font-size:1.2rem; cursor:pointer;" onclick="closeModal('modalReserva')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:#f8fafc; padding:1rem; border-radius:10px; border:1px solid var(--border);">
+          <div style="font-weight:700; font-size:1rem;" id="modalPropName">Penthouse de Lujo</div>
+          <div style="font-size:0.85rem; color:var(--text-muted);" id="modalPropLoc">Calacoto, La Paz</div>
+          <div style="font-size:1.15rem; font-weight:800; color:var(--emerald); margin-top:0.4rem;" id="modalPropPrice">$245,000 USD</div>
+        </div>
+
+        <div class="form-group">
+          <label>Titular Comprador</label>
+          <input type="text" id="inputClientName" class="form-control" readonly>
+        </div>
+
+        <div class="form-group">
+          <label>Depósito de Arras Penitenciales (Garantía de Reserva)</label>
+          <input type="text" id="inputDepositAmount" class="form-control" readonly>
+          <span style="font-size:0.75rem; color:var(--text-muted);">Bloquea el inmueble en MongoDB y genera el contrato en PostgreSQL con validez por 48 horas.</span>
+        </div>
+
+        <div class="form-group">
+          <label>Método de Pago</label>
+          <select id="inputPaymentMethod" class="form-control">
+            <option value="Tarjeta de Crédito / Débito">Tarjeta de Crédito / Débito (Pasarela Bancaria)</option>
+            <option value="Transferencia Interbancaria">Transferencia Interbancaria Inmediata</option>
+            <option value="Custodia Fiduciaria">Fondo Fiduciario Notarial</option>
+          </select>
+        </div>
+
+        <div style="font-size:0.8rem; color:#475569; background:#fffbeb; padding:0.85rem; border-radius:8px; border:1px solid #fde68a;">
+          ⚖️ Transacción Saga Transversal: Al confirmar, se bloquea la propiedad, se registra el pago en DynamoDB y se emite la minuta en PostgreSQL.
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modalReserva')">Cancelar</button>
+        <button class="btn btn-emerald" id="btnConfirmReserva" onclick="confirmarReservaEnBD()">Confirmar Reserva y Guardar en BD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CREAR / PUBLICAR NUEVO INMUEBLE (AGENTE / ADMIN) -->
+  <div class="modal-backdrop" id="modalNuevoInmueble">
+    <div class="modal-window">
+      <div class="modal-head">
+        <h3>Publicar Nuevo Inmueble</h3>
+        <button style="background:none; border:none; font-size:1.2rem; cursor:pointer;" onclick="closeModal('modalNuevoInmueble')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Título del Inmueble</label>
+          <input type="text" id="newPropTitle" class="form-control" placeholder="ej. Departamento Moderno Equipetrol" required>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+          <div class="form-group">
+            <label>Tipo de Inmueble</label>
+            <select id="newPropType" class="form-control">
+              <option value="DEPARTAMENTO">Departamento</option>
+              <option value="CASA">Casa</option>
+              <option value="TERRENO">Terreno</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Ciudad</label>
+            <input type="text" id="newPropCity" class="form-control" placeholder="Santa Cruz / La Paz" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Zona / Barrio</label>
+          <input type="text" id="newPropZone" class="form-control" placeholder="ej. Equipetrol Norte" required>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+          <div class="form-group">
+            <label>Precio Total (USD)</label>
+            <input type="number" id="newPropPrice" class="form-control" placeholder="185000" required>
+          </div>
+          <div class="form-group">
+            <label>Depósito Arras (USD)</label>
+            <input type="number" id="newPropDeposit" class="form-control" placeholder="5000" required>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem;">
+          <div class="form-group">
+            <label>Dormitorios</label>
+            <input type="number" id="newPropRooms" class="form-control" value="2">
+          </div>
+          <div class="form-group">
+            <label>Baños</label>
+            <input type="number" id="newPropBaths" class="form-control" value="2">
+          </div>
+          <div class="form-group">
+            <label>Área (m²)</label>
+            <input type="number" id="newPropArea" class="form-control" value="110">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>URL Fotografía</label>
+          <input type="text" id="newPropImage" class="form-control" value="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80">
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modalNuevoInmueble')">Cancelar</button>
+        <button class="btn btn-emerald" onclick="guardarNuevoInmueble()">Guardar en MongoDB & Postgres</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: VISUALIZAR CONTRATO LEGAL / FIRMA NOTARIAL -->
+  <div class="modal-backdrop" id="modalContrato">
+    <div class="modal-window" style="max-width: 680px;">
+      <div class="modal-head">
+        <h3 id="modalContratoNum">Minuta Notarial</h3>
+        <button style="background:none; border:none; font-size:1.2rem; cursor:pointer;" onclick="closeModal('modalContrato')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <pre id="modalContratoTexto" style="background:#f8fafc; border:1px solid var(--border); padding:1.25rem; border-radius:8px; font-family:'JetBrains Mono', monospace; font-size:0.78rem; line-height:1.6; white-space:pre-wrap; max-height:360px; overflow-y:auto;"></pre>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modalContrato')">Cerrar</button>
+        <button class="btn" id="btnFirmarContratoModal" onclick="firmarContratoSeleccionado()">Firmar Digitalmente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast-msg">
+    <span>✅</span>
+    <span id="toastText">Operación realizada con éxito</span>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:5000/api';
+
+    let currentUser = null;
+    let propertiesCache = [];
+    let selectedPropForRes = null;
+    let selectedContractId = null;
+
+    // INICIALIZACIÓN
+    window.onload = function() {
+      const savedUser = sessionStorage.getItem('habitat_real_user');
+      if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        showApp();
+      } else {
+        showLogin();
+      }
+    };
+
+    function showLogin() {
+      document.getElementById('loginScreen').classList.remove('hidden');
+      document.getElementById('appContainer').classList.add('hidden');
+    }
+
+    function setAuthMode(mode) {
+      if (mode === 'login') {
+        document.getElementById('btnModeLogin').classList.add('active');
+        document.getElementById('btnModeRegister').classList.remove('active');
+        document.getElementById('formLogin').classList.remove('hidden');
+        document.getElementById('formRegister').classList.add('hidden');
+        document.getElementById('quickLoginSection').classList.remove('hidden');
+      } else {
+        document.getElementById('btnModeRegister').classList.add('active');
+        document.getElementById('btnModeLogin').classList.remove('active');
+        document.getElementById('formRegister').classList.remove('hidden');
+        document.getElementById('formLogin').classList.add('hidden');
+        document.getElementById('quickLoginSection').classList.add('hidden');
+      }
+    }
+
+    // REGISTRO DE NUEVO USUARIO (SIEMPRE SE CREA COMO COMPRADOR)
+    async function registrarNuevoComprador() {
+      const name = document.getElementById('regName').value;
+      const email = document.getElementById('regEmail').value;
+      const pass = document.getElementById('regPass').value;
+
+      try {
+        const res = await fetch(`${API_URL}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password: pass })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          currentUser = data.user;
+          sessionStorage.setItem('habitat_real_user', JSON.stringify(currentUser));
+          showApp();
+          showToast(`¡Cuenta creada con éxito como Comprador en PostgreSQL! Bienvenido, ${currentUser.name}`);
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (e) {
+        alert('Fallo de conexión al servidor: ' + e.message);
+      }
+    }
+
+    // LOGIN REAL CONTRA POSTGRESQL
+    async function loginConCredenciales() {
+      const email = document.getElementById('loginEmail').value;
+      const pass = document.getElementById('loginPass').value;
+
+      try {
+        const res = await fetch(`${API_URL}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: pass })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          currentUser = data.user;
+          sessionStorage.setItem('habitat_real_user', JSON.stringify(currentUser));
+          showApp();
+          showToast(`Bienvenido ${currentUser.name} (${currentUser.role})`);
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (e) {
+        alert('Fallo de conexión al backend: ' + e.message);
+      }
+    }
+
+    async function loginDirecto(email) {
+      document.getElementById('loginEmail').value = email;
+      document.getElementById('loginPass').value = 'pass123';
+      await loginConCredenciales();
+    }
+
+    function logout() {
+      sessionStorage.removeItem('habitat_real_user');
+      currentUser = null;
+      showLogin();
+      showToast('Sesión cerrada correctamente.');
+    }
+
+    // CONFIGURACIÓN DE LA INTERFAZ SEGÚN ROL RBAC
+    function showApp() {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('appContainer').classList.remove('hidden');
+
+      document.getElementById('headerUserName').innerText = currentUser.name;
+      document.getElementById('headerAvatar').innerText = currentUser.initials;
+
+      const roleLabels = {
+        CLIENTE: 'Cliente Inversionista',
+        AGENTE: 'Agente Inmobiliario',
+        LEGAL: 'Oficial Notarial / Legal',
+        ADMIN: 'Administrador Principal'
+      };
+      document.getElementById('headerUserRole').innerText = roleLabels[currentUser.role] || currentUser.role;
+
+      // Configurar Barra de Navegación según Rol
+      configurarNavegacionPorRol();
+
+      // Botón Publicar Inmueble (Solo AGENTE y ADMIN)
+      const btnCrear = document.getElementById('btnCrearPropiedad');
+      if (currentUser.role === 'AGENTE' || currentUser.role === 'ADMIN') {
+        btnCrear.classList.remove('hidden');
+      } else {
+        btnCrear.classList.add('hidden');
+      }
+
+      // Cargar primera vista autorizada
+      navigate('catalogo');
+    }
+
+    function configurarNavegacionPorRol() {
+      const nav = document.getElementById('mainNavBar');
+      nav.innerHTML = '';
+
+      // Todos los roles ven el catálogo
+      nav.innerHTML += `<button class="nav-btn active" id="tabCatalogo" onclick="navigate('catalogo')">🏠 Inmuebles</button>`;
+
+      if (currentUser.role === 'CLIENTE') {
+        nav.innerHTML += `<button class="nav-btn" id="tabReservas" onclick="navigate('reservas')">📋 Mis Reservas</button>`;
+        nav.innerHTML += `<button class="nav-btn" id="tabContratos" onclick="navigate('contratos')">📜 Mis Contratos</button>`;
+      } else if (currentUser.role === 'AGENTE') {
+        nav.innerHTML += `<button class="nav-btn" id="tabReservas" onclick="navigate('reservas')">📋 Reservas de Clientes</button>`;
+        nav.innerHTML += `<button class="nav-btn" id="tabFinanzas" onclick="navigate('finanzas')">💼 Mis Comisiones</button>`;
+      } else if (currentUser.role === 'LEGAL') {
+        nav.innerHTML += `<button class="nav-btn" id="tabContratos" onclick="navigate('contratos')">📜 ERP Minutas Notariales</button>`;
+        nav.innerHTML += `<button class="nav-btn" id="tabReservas" onclick="navigate('reservas')">📋 Reservas por Formalizar</button>`;
+      } else if (currentUser.role === 'ADMIN') {
+        nav.innerHTML += `<button class="nav-btn" id="tabReservas" onclick="navigate('reservas')">📋 Todas las Reservas</button>`;
+        nav.innerHTML += `<button class="nav-btn" id="tabContratos" onclick="navigate('contratos')">📜 Auditoría Contratos</button>`;
+        nav.innerHTML += `<button class="nav-btn" id="tabFinanzas" onclick="navigate('finanzas')">💼 Finanzas Globales</button>`;
+        nav.innerHTML += `<button class="nav-btn" id="tabUsuarios" onclick="navigate('usuarios')">👥 Gestión de Usuarios & Roles</button>`;
+      }
+    }
+
+    // NAVEGACIÓN
+    function navigate(viewName) {
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      ['viewCatalogo', 'viewReservas', 'viewContratos', 'viewFinanzas', 'viewUsuarios'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+      });
+
+      const tabId = 'tab' + viewName.charAt(0).toUpperCase() + viewName.slice(1);
+      const tabEl = document.getElementById(tabId);
+      if (tabEl) tabEl.classList.add('active');
+
+      if (viewName === 'catalogo') {
+        document.getElementById('viewCatalogo').classList.remove('hidden');
+        cargarPropiedadesDesdeBD();
+      } else if (viewName === 'reservas') {
+        document.getElementById('viewReservas').classList.remove('hidden');
+        cargarReservasDesdeBD();
+      } else if (viewName === 'contratos') {
+        document.getElementById('viewContratos').classList.remove('hidden');
+        cargarContratosDesdeBD();
+      } else if (viewName === 'finanzas') {
+        document.getElementById('viewFinanzas').classList.remove('hidden');
+        cargarFinanzasDesdeBD();
+      } else if (viewName === 'usuarios') {
+        document.getElementById('viewUsuarios').classList.remove('hidden');
+        cargarUsuariosAdminDesdeBD();
+      }
+    }
+
+    // CARGAR PROPIEDADES (MongoDB + PostgreSQL)
+    async function cargarPropiedadesDesdeBD() {
+      try {
+        const res = await fetch(`${API_URL}/properties`);
+        const result = await res.json();
+        if (result.success) {
+          propertiesCache = result.data;
+          renderPropiedades(propertiesCache);
+        }
+      } catch (e) {
+        console.error('Error al cargar propiedades:', e);
+      }
+    }
+
+    function renderPropiedades(properties) {
+      const container = document.getElementById('propertiesList');
+      container.innerHTML = '';
+
+      const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+      const type = document.getElementById('typeFilter')?.value || 'ALL';
+      const status = document.getElementById('statusFilter')?.value || 'ALL';
+
+      const filtered = properties.filter(p => {
+        const matchSearch = p.title.toLowerCase().includes(search) || p.zone.toLowerCase().includes(search) || p.city.toLowerCase().includes(search);
+        const matchType = type === 'ALL' || p.type === type;
+        const matchStatus = status === 'ALL' || p.status === status;
+        return matchSearch && matchType && matchStatus;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:3rem; color:var(--text-muted);">No se encontraron inmuebles con los filtros seleccionados.</div>';
+        return;
+      }
+
+      filtered.forEach(p => {
+        const isDisponible = p.status === 'DISPONIBLE';
+        const isReservado = p.status === 'RESERVADO';
+
+        let statusClass = 'status-disponible';
+        if (isReservado) statusClass = 'status-reservado';
+        if (p.status === 'COMPRADO') statusClass = 'status-comprado';
+
+        const card = document.createElement('div');
+        card.className = 'property-card';
+        card.innerHTML = `
+          <div class="property-img">
+            <img src="${p.image}" alt="${p.title}">
+            <div class="badge-status ${statusClass}">${p.status}</div>
+            <div class="price-pill">$${p.price.toLocaleString()} USD</div>
+          </div>
+          <div class="property-content">
+            <h3 class="property-title">${p.title}</h3>
+            <div class="property-addr">📍 ${p.zone}, ${p.city}</div>
+            <div class="specs-row">
+              ${p.rooms ? `<span>🛏️ ${p.rooms} Dorm</span>` : ''}
+              ${p.baths ? `<span>🚿 ${p.baths} Baños</span>` : ''}
+              <span>📐 ${p.area} m²</span>
+              <span>🚗 ${p.parking} Garaje</span>
+            </div>
+            <div style="margin-top:auto; display:flex; gap:0.5rem;">
+              ${isDisponible ? (
+                currentUser.role === 'CLIENTE' ? `
+                  <button class="btn" style="flex:1" onclick="abrirModalReserva('${p.id}')">
+                    ⚡ Reservar con Arras ($${p.deposit.toLocaleString()} USD)
+                  </button>
+                ` : `
+                  <button class="btn btn-secondary" style="flex:1" onclick="abrirModalReserva('${p.id}')">
+                    Formalizar Reserva para Cliente
+                  </button>
+                `
+              ) : `
+                <button class="btn btn-secondary" style="flex:1" disabled>
+                  ${p.status === 'RESERVADO' ? '🔒 Bloqueado en Reserva' : '✔️ Propiedad Vendida'}
+                </button>
+              `}
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function applyFilters() {
+      renderPropiedades(propertiesCache);
+    }
+
+    // MODAL DE RESERVA
+    function abrirModalReserva(propertyId) {
+      selectedPropForRes = propertiesCache.find(p => p.id === propertyId);
+      if (!selectedPropForRes) return;
+
+      document.getElementById('modalPropName').innerText = selectedPropForRes.title;
+      document.getElementById('modalPropLoc').innerText = `${selectedPropForRes.zone}, ${selectedPropForRes.city}`;
+      document.getElementById('modalPropPrice').innerText = `$${selectedPropForRes.price.toLocaleString()} USD`;
+      document.getElementById('inputClientName').value = `${currentUser.name} (${currentUser.email})`;
+      document.getElementById('inputDepositAmount').value = `$${selectedPropForRes.deposit.toLocaleString()} USD`;
+
+      document.getElementById('modalReserva').classList.add('open');
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.remove('open');
+    }
+
+    // CONFIRMAR RESERVA (TRANSACCIÓN SAGA EN BD)
+    async function confirmarReservaEnBD() {
+      if (!selectedPropForRes || !currentUser) return;
+
+      const method = document.getElementById('inputPaymentMethod').value;
+      try {
+        const res = await fetch(`${API_URL}/reservations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            propertyId: selectedPropForRes.id,
+            userId: currentUser.id,
+            userName: currentUser.name,
+            depositAmount: selectedPropForRes.deposit,
+            paymentMethod: method
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          closeModal('modalReserva');
+          showToast(`¡Reserva guardada con éxito en PostgreSQL, MongoDB y DynamoDB!`);
+          await cargarPropiedadesDesdeBD();
+          navigate('reservas');
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (e) {
+        alert('Error al conectar con la base de datos: ' + e.message);
+      }
+    }
+
+    // CARGAR RESERVAS DESDE POSTGRESQL (FILTRADAS SEGÚN ROL)
+    async function cargarReservasDesdeBD() {
+      try {
+        // REGLA DE NEGOCIO: CLIENTE solo ve sus reservas. AGENTE/ADMIN/LEGAL ven todas.
+        const url = (currentUser.role === 'CLIENTE') 
+          ? `${API_URL}/reservations?userId=${currentUser.id}` 
+          : `${API_URL}/reservations`;
+
+        const res = await fetch(url);
+        const result = await res.json();
+        if (result.success) {
+          renderReservas(result.data);
+        }
+      } catch (e) {
+        console.error('Error al cargar reservas:', e);
+      }
+    }
+
+    function renderReservas(reservations) {
+      const tbody = document.getElementById('reservasTableBody');
+      tbody.innerHTML = '';
+
+      if (reservations.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No hay reservas registradas para tu perfil.</td></tr>`;
+        return;
+      }
+
+      reservations.forEach(r => {
+        const isActiva = r.status === 'ACTIVA';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${r.id}</strong></td>
+          <td>${r.prop_title}</td>
+          <td>${r.user_name}</td>
+          <td><strong style="color:var(--emerald);">$${parseFloat(r.deposit_amount).toLocaleString()} USD</strong></td>
+          <td>
+            <span style="background:${isActiva ? '#fffbeb' : '#f1f5f9'}; color:${isActiva ? '#b45309' : '#64748b'}; padding:0.25rem 0.6rem; border-radius:6px; font-weight:700; font-size:0.75rem;">
+              ${r.status}
+            </span>
+          </td>
+          <td>${isActiva ? '⏱️ 48h TTL (DynamoDB)' : '&mdash;'}</td>
+          <td>
+            ${isActiva ? `
+              <div style="display:flex; gap:0.4rem;">
+                ${currentUser.role === 'CLIENTE' || currentUser.role === 'ADMIN' ? `
+                  <button class="btn" style="padding:0.35rem 0.75rem; font-size:0.75rem;" onclick="comprarDefinitivoBD('${r.id}')">Comprar Definitivo</button>
+                  <button class="btn-logout" style="padding:0.35rem 0.6rem; font-size:0.75rem;" onclick="cancelarReservaBD('${r.id}')">Cancelar (Rollback)</button>
+                ` : `
+                  <span style="font-size:0.75rem; color:var(--text-muted);">En trámite</span>
+                `}
+              </div>
+            ` : `<span style="font-size:0.75rem; color:var(--text-muted);">Proceso cerrado</span>`}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function cancelarReservaBD(reservationId) {
+      if (!confirm('¿Deseas cancelar la reserva? El sistema ejecutará el Rollback Saga: devolverá las arras y liberará el inmueble en PostgreSQL y MongoDB.')) return;
+
+      try {
+        const res = await fetch(`${API_URL}/reservations/${reservationId}/cancel`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Compensación completada: Fondos devueltos e inmueble liberado en BD.');
+          cargarReservasDesdeBD();
+          cargarPropiedadesDesdeBD();
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    async function comprarDefinitivoBD(reservationId) {
+      try {
+        const res = await fetch(`${API_URL}/reservations/${reservationId}/buy`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast('¡Compra definitiva formalizada en PostgreSQL y MongoDB!');
+          cargarReservasDesdeBD();
+          cargarPropiedadesDesdeBD();
+          cargarContratosDesdeBD();
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // CARGAR CONTRATOS (POSTGRESQL ACID)
+    async function cargarContratosDesdeBD() {
+      try {
+        // REGLA DE NEGOCIO: CLIENTE solo ve sus contratos. LEGAL y ADMIN ven todos.
+        const url = (currentUser.role === 'CLIENTE')
+          ? `${API_URL}/contracts?userId=${currentUser.id}&role=CLIENTE`
+          : `${API_URL}/contracts`;
+
+        const res = await fetch(url);
+        const result = await res.json();
+        if (result.success) {
+          renderContratos(result.data);
+        }
+      } catch (e) {
+        console.error('Error al cargar contratos:', e);
+      }
+    }
+
+    function renderContratos(contracts) {
+      const tbody = document.getElementById('contratosTableBody');
+      tbody.innerHTML = '';
+
+      if (contracts.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No tienes contratos registrados.</td></tr>`;
+        return;
+      }
+
+      contracts.forEach(c => {
+        const isFirmado = c.status === 'FIRMADO_NOTARIADO';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${c.id}</strong></td>
+          <td>${c.property_title}</td>
+          <td>${c.contract_type}</td>
+          <td><strong>$${parseFloat(c.total_amount).toLocaleString()} USD</strong></td>
+          <td>
+            <span style="background:${isFirmado ? '#ecfdf5' : '#e0f2fe'}; color:${isFirmado ? '#059669' : '#0284c7'}; padding:0.25rem 0.6rem; border-radius:6px; font-weight:700; font-size:0.75rem;">
+              ${c.status}
+            </span>
+          </td>
+          <td>${c.signed_by || 'Pendiente de firma'}</td>
+          <td>
+            <button class="btn btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.75rem;" onclick="verContratoModal('${c.id}', '${c.property_title}', ${c.total_amount}, '${c.signed_by}')">
+              ${isFirmado ? '📄 Ver Escritura' : (currentUser.role === 'LEGAL' ? '⚖️ Dar Fe Pública' : '✍️ Firmar Digitalmente')}
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function verContratoModal(contractId, propTitle, totalAmount, signedBy) {
+      selectedContractId = contractId;
+      document.getElementById('modalContratoNum').innerText = `Contrato Notarial #${contractId}`;
+      document.getElementById('modalContratoTexto').innerText = 
+`TESTIMONIO DE ESCRITURA PÚBLICA / PROMESA FORMAL DE COMPRAVENTA
+EXPEDIENTE NOTARIAL: ${contractId}
+REGISTRO ACID POSTGRESQL: contracts_db
+
+PARTES CONTRATANTES:
+1. PROPIETARIO / DESARROLLADORA INMOBILIARIA HABITAT PRO.
+2. TITULAR COMPRADOR: ${currentUser.name} (${currentUser.role}).
+
+CLÁUSULA PRIMERA (OBJETO Y PRECIO):
+El VENDEDOR da en promesa formal de compraventa el inmueble:
+"${propTitle}".
+El precio convenido de venta es de $${parseFloat(totalAmount).toLocaleString()} USD.
+
+CLÁUSULA SEGUNDA (ARRAS Y GARANTÍAS):
+El depósito de arras ha sido asentado en el libro contable de DynamoDB.
+
+ESTADO DE FIRMAS ELECTRÓNICAS:
+${signedBy ? signedBy.split(', ').map(s => `- ${s} (Firma Digital Verificada)`).join('\n') : '- Pendiente de firma notarial'}`;
+
+      const btnFirma = document.getElementById('btnFirmarContratoModal');
+      if (currentUser.role === 'LEGAL') {
+        btnFirma.innerText = '⚖️ Dar Fe Pública Notarial';
+      } else {
+        btnFirma.innerText = '✍️ Firmar como Comprador';
+      }
+
+      document.getElementById('modalContrato').classList.add('open');
+    }
+
+    async function firmarContratoSeleccionado() {
+      if (!selectedContractId) return;
+
+      const firmaName = currentUser.role === 'LEGAL' ? `${currentUser.name} (Notaria de Fe Pública)` : currentUser.name;
+
+      try {
+        const res = await fetch(`${API_URL}/contracts/${selectedContractId}/sign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ signerName: firmaName })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeModal('modalContrato');
+          showToast(`Contrato #${selectedContractId} protocolizado exitosamente en PostgreSQL.`);
+          cargarContratosDesdeBD();
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // CARGAR FINANZAS (AGENTE / ADMIN)
+    async function cargarFinanzasDesdeBD() {
+      try {
+        const res = await fetch(`${API_URL}/finances`);
+        const result = await res.json();
+        if (result.success) {
+          const { totalVolume, totalArras, totalCommissions, payments } = result.data;
+          document.getElementById('kpiTotalVolume').innerText = `$${totalVolume.toLocaleString()} USD`;
+          
+          if (currentUser.role === 'AGENTE') {
+            document.getElementById('labelComisiones').innerText = 'Mis Comisiones Acumuladas';
+            document.getElementById('kpiCommissions').innerText = `$${Math.round(totalCommissions).toLocaleString()} USD`;
+          } else {
+            document.getElementById('labelComisiones').innerText = 'Comisiones de Red Liquidadas';
+            document.getElementById('kpiCommissions').innerText = `$${Math.round(totalCommissions).toLocaleString()} USD`;
+          }
+
+          document.getElementById('kpiArras').innerText = `$${totalArras.toLocaleString()} USD`;
+
+          const tbody = document.getElementById('finanzasTableBody');
+          tbody.innerHTML = '';
+          payments.forEach(p => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td><strong>${p.id}</strong></td>
+              <td>${p.concept}</td>
+              <td>${p.property_id || '&mdash;'}</td>
+              <td><strong style="color:var(--emerald);">$${parseFloat(p.amount).toLocaleString()} USD</strong></td>
+              <td>${p.method}</td>
+              <td>${new Date(p.created_at).toLocaleDateString()}</td>
+              <td><span style="font-weight:700; color:var(--emerald);">${p.status}</span></td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+      } catch (e) {
+        console.error('Error al cargar finanzas:', e);
+      }
+    }
+
+    // GESTIÓN DE USUARIOS Y ROLES (EXCLUSIVO PARA ADMINISTRADOR)
+    async function cargarUsuariosAdminDesdeBD() {
+      if (currentUser.role !== 'ADMIN') return;
+
+      try {
+        const res = await fetch(`${API_URL}/users`);
+        const result = await res.json();
+        if (result.success) {
+          renderUsuariosAdmin(result.data);
+        }
+      } catch (e) {
+        console.error('Error al cargar usuarios:', e);
+      }
+    }
+
+    function renderUsuariosAdmin(users) {
+      const tbody = document.getElementById('usuariosTableBody');
+      tbody.innerHTML = '';
+
+      users.forEach(u => {
+        const isSelf = u.id === currentUser.id;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${u.id}</strong></td>
+          <td>${u.name}</td>
+          <td>${u.email}</td>
+          <td><span class="role-badge role-${u.role.toLowerCase()}">${u.role}</span></td>
+          <td>${new Date(u.created_at).toLocaleDateString()}</td>
+          <td>
+            ${isSelf ? `<span style="font-size:0.75rem; color:var(--text-muted);">Cuenta Actual (Admin)</span>` : `
+              <select class="filter-select" style="padding:0.35rem 0.6rem; font-size:0.8rem;" onchange="cambiarRolUsuario('${u.id}', this.value)">
+                <option value="CLIENTE" ${u.role === 'CLIENTE' ? 'selected' : ''}>Comprador (CLIENTE)</option>
+                <option value="AGENTE" ${u.role === 'AGENTE' ? 'selected' : ''}>Agente Inmobiliario (AGENTE)</option>
+                <option value="LEGAL" ${u.role === 'LEGAL' ? 'selected' : ''}>Oficial Notarial (LEGAL)</option>
+                <option value="ADMIN" ${u.role === 'ADMIN' ? 'selected' : ''}>Administrador (ADMIN)</option>
+              </select>
+            `}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function cambiarRolUsuario(userId, newRole) {
+      try {
+        const res = await fetch(`${API_URL}/users/${userId}/role`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newRole })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Rol actualizado a ${newRole} en PostgreSQL para el usuario ${data.user.name}`);
+          cargarUsuariosAdminDesdeBD();
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // MODAL PUBLICAR INMUEBLE (AGENTE / ADMIN)
+    function abrirModalNuevaPropiedad() {
+      document.getElementById('modalNuevoInmueble').classList.add('open');
+    }
+
+    async function guardarNuevoInmueble() {
+      const title = document.getElementById('newPropTitle').value;
+      const propertyType = document.getElementById('newPropType').value;
+      const city = document.getElementById('newPropCity').value;
+      const zone = document.getElementById('newPropZone').value;
+      const price = document.getElementById('newPropPrice').value;
+      const deposit = document.getElementById('newPropDeposit').value;
+      const rooms = document.getElementById('newPropRooms').value;
+      const baths = document.getElementById('newPropBaths').value;
+      const area = document.getElementById('newPropArea').value;
+      const image = document.getElementById('newPropImage').value;
+
+      if (!title || !city || !zone || !price || !deposit) {
+        alert('Por favor completa todos los campos requeridos.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_URL}/properties`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, propertyType, city, zone, price, deposit, rooms, baths, area, image })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeModal('modalNuevoInmueble');
+          showToast(`Inmueble publicado con éxito en MongoDB y PostgreSQL.`);
+          cargarPropiedadesDesdeBD();
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // TOAST NOTIFIER
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+# ==============================================================================
+# HABITAT PRO - .gitignore General
+# ==============================================================================
+
+# --- Node.js & Dependencias de JavaScript / TypeScript ---
+node_modules/
+*/node_modules/
+*/*/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-store/
+
+# --- Compilados y Builds (React, Vue, Angular, NestJS) ---
+dist/
+*/dist/
+build/
+*/build/
+out/
+*/out/
+.angular/
+*/.angular/
+.vite/
+*/.vite/
+*.tsbuildinfo
+
+# --- Java & Spring Boot (ms-contracts-spring) ---
+target/
+*/target/
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+replay_pid*
+.mvn/wrapper/maven-wrapper.jar
+
+# --- PHP & Composer (ms-billing-php) ---
+vendor/
+*/vendor/
+.phpunit.result.cache
+.phpunit.cache/
+
+# --- Variables de Entorno y Secretos ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+
+# --- Datos Locales y Volúmenes de Bases de Datos / Docker ---
+postgres_data/
+mongo_data/
+dynamodb_data/
+keycloak_data/
+*.rdb
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Logs y Procesos ---
+logs/
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# --- IDEs y Editores de Código ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+*.launch
+*.ntvs*
+*.njsproj
+*.sln
+
+# --- Sistema Operativo (Windows & macOS) ---
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# --- Archivos Temporales y Scratch ---
+tmp/
+temp/
+scratch/
+*.tmp
+*.bak
