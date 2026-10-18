@@ -1,0 +1,242 @@
+{
+  "name": "Habitat Pro - Flujo Automatizado 100% Funcional",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-lead-inquiry",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-inbox",
+      "name": "1. Entrada Mensaje Cliente (WhatsApp/Web)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:5000/api/ai/report",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "queryText",
+              "value": "={{ $json.body.message || 'Quiero reservar departamento en Calacoto' }}"
+            },
+            {
+              "name": "userRole",
+              "value": "CLIENTE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-claude-semantic",
+      "name": "2. Extractor Semántico Claude & BD",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:5000/api/properties",
+        "options": {}
+      },
+      "id": "node-check-properties",
+      "name": "3. Consultar Disponibilidad Backend (:5000)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.data[0].status }}",
+              "operation": "equal",
+              "value2": "DISPONIBLE"
+            }
+          ]
+        }
+      },
+      "id": "node-if-available",
+      "name": "4. ¿Inmueble Disponible?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:5000/api/reservations",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "propertyId",
+              "value": "={{ $('3. Consultar Disponibilidad Backend (:5000)').item.json.data[0].id }}"
+            },
+            {
+              "name": "userId",
+              "value": "CLI-JUAN-COMPRADOR"
+            },
+            {
+              "name": "userName",
+              "value": "={{ $('1. Entrada Mensaje Cliente (WhatsApp/Web)').item.json.body.name || 'Juan Comprador' }}"
+            },
+            {
+              "name": "depositAmount",
+              "value": "={{ $('3. Consultar Disponibilidad Backend (:5000)').item.json.data[0].deposit }}"
+            },
+            {
+              "name": "paymentMethod",
+              "value": "Transferencia ACH / Arras"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-execute-saga",
+      "name": "5. Disparar Transacción Saga en BD",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1220, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:5000/api/notifications/email",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "to",
+              "value": "={{ $('1. Entrada Mensaje Cliente (WhatsApp/Web)').item.json.body.email || 'juan.comprador@habitat.pro' }}"
+            },
+            {
+              "name": "subject",
+              "value": "Confirmación de Reserva y Minuta Notarial - Habitat Pro"
+            },
+            {
+              "name": "message",
+              "value": "=Estimado cliente, tu reserva para el inmueble {{ $json.data.propertyId }} ha sido confirmada con éxito. Expediente: {{ $json.data.reservationId }}."
+            },
+            {
+              "name": "reservationId",
+              "value": "={{ $json.data.reservationId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-send-email-api",
+      "name": "6. Despachar Correo con Minuta y Factura",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1460, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"status\": \"RESERVA_COMPLETADA\",\n  \"reservationId\": \"{{ $('5. Disparar Transacción Saga en BD').item.json.data.reservationId }}\",\n  \"property\": \"{{ $('5. Disparar Transacción Saga en BD').item.json.data.propertyId }}\",\n  \"emailSentTo\": \"{{ $('1. Entrada Mensaje Cliente (WhatsApp/Web)').item.json.body.email || 'juan.comprador@habitat.pro' }}\",\n  \"message\": \"¡Reserva formalizada con éxito y comprobante enviado por correo!\"\n}",
+        "options": {}
+      },
+      "id": "node-webhook-response-ok",
+      "name": "7. Respuesta Exitosa al Cliente",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1700, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"status\": \"INMUEBLE_NO_DISPONIBLE\",\n  \"message\": \"El inmueble solicitado no está disponible en este momento. Un asesor comercial te contactará.\"\n}",
+        "options": {}
+      },
+      "id": "node-webhook-response-fail",
+      "name": "8. Respuesta No Disponible",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1220, 420]
+    }
+  ],
+  "connections": {
+    "1. Entrada Mensaje Cliente (WhatsApp/Web)": {
+      "main": [
+        [
+          {
+            "node": "2. Extractor Semántico Claude & BD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Extractor Semántico Claude & BD": {
+      "main": [
+        [
+          {
+            "node": "3. Consultar Disponibilidad Backend (:5000)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Consultar Disponibilidad Backend (:5000)": {
+      "main": [
+        [
+          {
+            "node": "4. ¿Inmueble Disponible?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. ¿Inmueble Disponible?": {
+      "main": [
+        [
+          {
+            "node": "5. Disparar Transacción Saga en BD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "8. Respuesta No Disponible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Disparar Transacción Saga en BD": {
+      "main": [
+        [
+          {
+            "node": "6. Despachar Correo con Minuta y Factura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Despachar Correo con Minuta y Factura": {
+      "main": [
+        [
+          {
+            "node": "7. Respuesta Exitosa al Cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
