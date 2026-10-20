@@ -1,7 +1,7 @@
 /**
  * Microfrontend: mfe-properties-react
  * Tecnología: React 18 (Custom Element / Web Component)
- * Responsabilidad: Catálogo inmobiliario, filtros polimórficos y tarjetas de propiedades.
+ * Responsabilidad: Catálogo inmobiliario, toolbar de filtros avanzados y fichas técnicas de inmuebles.
  */
 
 (function () {
@@ -9,51 +9,94 @@
 
   function PropertyCard({ property, onReserve, onVisit }) {
     const isDisponible = property.status === 'DISPONIBLE';
+    const isReservado = property.status === 'RESERVADO';
+    const isComprado = property.status === 'COMPRADO';
 
-    return e('div', { className: 'prop-card', key: property.id },
-      e('div', { className: 'prop-card-img-wrapper' },
+    const statusClass = isDisponible 
+      ? 'status-disponible' 
+      : isReservado 
+        ? 'status-reservado' 
+        : 'status-comprado';
+
+    const statusLabel = isDisponible 
+      ? '🟢 DISPONIBLE' 
+      : isReservado 
+        ? '🟡 EN RESERVA (48h)' 
+        : '🔴 VENDIDO';
+
+    return e('div', { className: 'property-card', key: property.id },
+      // Imagen con badges flotantes
+      e('div', { className: 'property-img' },
         e('img', {
-          src: property.image || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=600&q=80',
+          src: property.image || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80',
           alt: property.title,
-          className: 'prop-card-img'
+          loading: 'lazy'
         }),
-        e('span', { className: `badge-status badge-${property.status ? property.status.toLowerCase() : 'disponible'}` },
-          property.status || 'DISPONIBLE'
-        ),
-        e('span', { className: 'badge-type' }, property.type || property.propertyType || 'INMUEBLE')
+        e('span', { className: `badge-status ${statusClass}` }, statusLabel),
+        e('span', { className: 'delivery-pill' }, property.deliveryType ? property.deliveryType.replace('_', ' ') : 'ENTREGA INMEDIATA'),
+        e('span', { className: 'price-pill' }, `$${Number(property.price || 0).toLocaleString()} USD`)
       ),
-      e('div', { className: 'prop-card-body' },
-        e('div', { className: 'prop-card-code' }, `Ref: #${property.code || property.id}`),
-        e('h3', { className: 'prop-card-title' }, property.title),
-        e('p', { className: 'prop-card-loc' }, `📍 ${property.zone || ''}, ${property.city || ''}`),
-        e('div', { className: 'prop-card-features' },
-          property.area ? e('span', null, `📐 ${property.area} m²`) : null,
-          property.rooms > 0 ? e('span', null, `🛏️ ${property.rooms} dorm.`) : null,
-          property.baths > 0 ? e('span', null, `🚿 ${property.baths} baños`) : null,
-          property.parking > 0 ? e('span', null, `🚗 ${property.parking} estac.`) : null
-        ),
-        e('div', { className: 'prop-card-price-row' },
-          e('div', null,
-            e('span', { className: 'price-label' }, 'Precio de Venta'),
-            e('div', { className: 'price-val' }, `$${Number(property.price || 0).toLocaleString()} USD`)
-          ),
-          e('div', { style: { textAlign: 'right' } },
-            e('span', { className: 'price-label' }, 'Arras Requeridas'),
-            e('div', { className: 'deposit-val' }, `$${Number(property.deposit || 5000).toLocaleString()} USD`)
+
+      // Cuerpo de la propiedad
+      e('div', { className: 'property-content' },
+        e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+          e('span', { className: 'folio-tag' }, `FOLIO: ${property.folioReal || property.code || '#' + property.id}`),
+          e('span', { style: { fontSize: '0.75rem', fontWeight: 800, color: 'var(--brand)', textTransform: 'uppercase' } },
+            property.type || property.propertyType || 'INMUEBLE'
           )
         ),
-        e('div', { className: 'prop-card-actions' },
-          e('button', {
-            className: 'btn-secondary btn-sm',
-            onClick: () => onVisit(property)
-          }, '📅 Visita'),
-          isDisponible ? e('button', {
-            className: 'btn-primary btn-sm',
-            onClick: () => onReserve(property)
-          }, '⚡ Reservar con Arras') : e('button', {
-            className: 'btn-disabled btn-sm',
-            disabled: true
-          }, 'No Disponible')
+        e('h3', { className: 'property-title' }, property.title),
+        e('div', { className: 'property-addr' }, `📍 ${property.zone || ''}, ${property.city || ''}`),
+
+        // Grid de Especificaciones Técnicas
+        e('div', { className: 'specs-grid' },
+          e('div', null,
+            e('span', null, 'Superficie'),
+            e('strong', null, `${property.area || property.areaSquareMeters || 0} m²`)
+          ),
+          e('div', null,
+            e('span', null, 'Dormitorios'),
+            e('strong', null, property.rooms || 0)
+          ),
+          e('div', null,
+            e('span', null, 'Baños'),
+            e('strong', null, property.baths || property.bathrooms || 0)
+          ),
+          e('div', null,
+            e('span', null, 'Parqueos'),
+            e('strong', null, property.parking || property.parkingSlots || 0)
+          )
+        ),
+
+        // Fila de Asesor y Arras
+        e('div', { className: 'broker-line' },
+          e('span', null, `👤 Asesor: ${property.brokerName || 'Carlos Broker'}`),
+          e('span', { style: { color: 'var(--emerald)', fontWeight: 800 } },
+            `Arras: $${Number(property.deposit || 5000).toLocaleString()} USD`
+          )
+        ),
+
+        // Botones de acción
+        e('div', { className: 'card-actions' },
+          e('div', { className: 'actions-sub-row' },
+            e('button', {
+              className: 'btn btn-secondary',
+              style: { flex: 1, padding: '0.65rem 0.5rem', fontSize: '0.82rem', fontWeight: 700 },
+              onClick: () => onVisit(property)
+            }, '📅 Visita'),
+
+            isDisponible
+              ? e('button', {
+                  className: 'btn btn-brand',
+                  style: { flex: 1.4, padding: '0.65rem 0.5rem', fontSize: '0.82rem', fontWeight: 800 },
+                  onClick: () => onReserve(property)
+                }, '⚡ Reservar con Arras')
+              : e('button', {
+                  className: 'btn btn-secondary',
+                  style: { flex: 1.4, padding: '0.65rem 0.5rem', fontSize: '0.82rem', opacity: 0.6, cursor: 'not-allowed' },
+                  disabled: true
+                }, isReservado ? '🟡 En Trámite' : '🔴 No Disponible')
+          )
         )
       )
     );
@@ -61,8 +104,10 @@
 
   function PropertyExplorerApp({ apiUrl }) {
     const [properties, setProperties] = React.useState([]);
-    const [filterType, setFilterType] = React.useState('TODOS');
     const [searchTerm, setSearchTerm] = React.useState('');
+    const [typeFilter, setTypeFilter] = React.useState('ALL');
+    const [statusFilter, setStatusFilter] = React.useState('ALL');
+    const [cityFilter, setCityFilter] = React.useState('ALL');
     const [loading, setLoading] = React.useState(true);
 
     const fetchProperties = React.useCallback(() => {
@@ -107,30 +152,75 @@
     };
 
     const filtered = properties.filter(p => {
-      const matchType = filterType === 'TODOS' || (p.type === filterType) || (p.propertyType === filterType);
-      const text = `${p.title || ''} ${p.city || ''} ${p.zone || ''} ${p.code || ''}`.toLowerCase();
+      const matchType = typeFilter === 'ALL' || (p.type === typeFilter) || (p.propertyType === typeFilter);
+      const matchStatus = statusFilter === 'ALL' || (p.status === statusFilter);
+      const matchCity = cityFilter === 'ALL' || (p.city === cityFilter);
+      const text = `${p.title || ''} ${p.city || ''} ${p.zone || ''} ${p.code || ''} ${p.folioReal || ''}`.toLowerCase();
       const matchSearch = !searchTerm || text.includes(searchTerm.toLowerCase());
-      return matchType && matchSearch;
+      return matchType && matchStatus && matchCity && matchSearch;
     });
 
     return e('div', { className: 'mfe-properties-root' },
-      e('div', { className: 'mfe-header-bar' },
-        e('div', { className: 'mfe-badge react' }, '⚛️ Microfrontend Catálogo (React 18 & MongoDB Atlas)'),
-        e('div', { className: 'mfe-filters' },
-          ['TODOS', 'DEPARTAMENTO', 'CASA', 'TERRENO'].map(type =>
-            e('button', {
-              key: type,
-              className: `filter-chip ${filterType === type ? 'active' : ''}`,
-              onClick: () => setFilterType(type)
-            }, type === 'TODOS' ? '🌐 Todos' : type === 'DEPARTAMENTO' ? '🏢 Departamentos' : type === 'CASA' ? '🏡 Casas' : '🏞️ Terrenos')
-          )
+      // Badge indicador del Microfrontend
+      e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' } },
+        e('div', { className: 'mfe-badge react' }, '⚛️ Microfrontend Catálogo & Marketplace (React 18 & MongoDB Atlas)'),
+        e('span', { style: { fontSize: '0.8rem', color: 'var(--text-muted)' } }, `${filtered.length} inmueble(s) listados`)
+      ),
+
+      // Toolbar de Filtros Inmobiliarios idéntico al diseño original
+      e('div', { className: 'filter-bar' },
+        e('input', {
+          type: 'text',
+          className: 'search-input',
+          placeholder: '🔍 Buscar por título, zona, ciudad o folio real...',
+          value: searchTerm,
+          onChange: (ev) => setSearchTerm(ev.target.value)
+        }),
+
+        e('select', {
+          className: 'filter-select',
+          value: typeFilter,
+          onChange: (ev) => setTypeFilter(ev.target.value)
+        },
+          e('option', { value: 'ALL' }, '🏢 Todos los Tipos'),
+          e('option', { value: 'DEPARTAMENTO' }, 'Departamentos'),
+          e('option', { value: 'CASA' }, 'Casas Residenciales'),
+          e('option', { value: 'TERRENO' }, 'Terrenos / Lotes')
+        ),
+
+        e('select', {
+          className: 'filter-select',
+          value: statusFilter,
+          onChange: (ev) => setStatusFilter(ev.target.value)
+        },
+          e('option', { value: 'ALL' }, '🔘 Todos los Estados'),
+          e('option', { value: 'DISPONIBLE' }, '🟢 Disponibles'),
+          e('option', { value: 'RESERVADO' }, '🟡 En Reserva'),
+          e('option', { value: 'COMPRADO' }, '🔴 Vendidos')
+        ),
+
+        e('select', {
+          className: 'filter-select',
+          value: cityFilter,
+          onChange: (ev) => setCityFilter(ev.target.value)
+        },
+          e('option', { value: 'ALL' }, '📍 Todas las Ciudades'),
+          e('option', { value: 'La Paz' }, 'La Paz'),
+          e('option', { value: 'Santa Cruz' }, 'Santa Cruz'),
+          e('option', { value: 'Cochabamba' }, 'Cochabamba')
         )
       ),
+
+      // Contenido
       loading
-        ? e('div', { className: 'mfe-loading' }, '⏳ Conectando con ms-properties-nestjs en MongoDB Atlas...')
+        ? e('div', { style: { padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' } },
+            '⏳ Consultando catálogo inmobiliario en MongoDB Atlas Cloud...'
+          )
         : filtered.length === 0
-          ? e('div', { className: 'mfe-empty' }, 'No se encontraron inmuebles con los criterios seleccionados.')
-          : e('div', { className: 'properties-grid' },
+          ? e('div', { style: { padding: '3rem', textAlign: 'center', background: 'white', borderRadius: '12px', border: '1px solid var(--border)', marginTop: '1.5rem' } },
+              '🔍 No se encontraron propiedades que coincidan con los filtros seleccionados.'
+            )
+          : e('div', { className: 'properties-grid', style: { marginTop: '1.5rem' } },
               filtered.map(p => e(PropertyCard, {
                 key: p.id,
                 property: p,
@@ -141,7 +231,7 @@
     );
   }
 
-  // Definición del Web Component personalizado <mfe-properties>
+  // Definición del Web Component <mfe-properties>
   class MfePropertiesElement extends HTMLElement {
     connectedCallback() {
       const apiUrl = this.getAttribute('api-url') || (window.API_URL || 'http://localhost:5000/api');
