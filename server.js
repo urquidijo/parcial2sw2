@@ -234,12 +234,14 @@ app.post('/api/reservations', async (req, res) => {
     console.log(`✅ [PASO 2A EXITOSO]: Cobro registrado en DynamoDB con ID: ${sagaTrace.paymentId}.`);
 
     // Registrar reserva en tabla de reservas DynamoDB con TTL de 48h
+    const propTitle = lockRes.data?.property?.title || lockRes.data?.title || ('Inmueble #' + propertyId);
     const resvSave = await fetchService(`${BILLING_SVC}/billing/reservations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         reservationId: sagaTrace.reservationId,
         propertyId,
+        propertyTitle: propTitle,
         userId: clientId,
         userName,
         userPhone,
@@ -352,11 +354,27 @@ app.post('/api/reservations', async (req, res) => {
   }
 });
 
-// Listar reservas (desde DynamoDB)
+// Listar reservas (desde DynamoDB) con enriquecimiento de títulos
 app.get('/api/reservations', async (req, res) => {
   const userId = req.query.userId;
   const url = userId ? `${BILLING_SVC}/billing/reservations?userId=${userId}` : `${BILLING_SVC}/billing/reservations`;
   const result = await fetchService(url);
+  if (result.ok && result.data && Array.isArray(result.data.data)) {
+    try {
+      const propsRes = await fetchService(PROPERTIES_SVC);
+      const catalog = Array.isArray(propsRes.data?.data) ? propsRes.data.data : (Array.isArray(propsRes.data) ? propsRes.data : []);
+      result.data.data = result.data.data.map(r => {
+        const pId = r.propertyId || r.property_id;
+        const matched = catalog.find(p => String(p.id) === String(pId));
+        return {
+          ...r,
+          propertyTitle: r.propertyTitle || r.property_title || r.prop_title || matched?.title || `Inmueble #${pId}`
+        };
+      });
+    } catch (_) {
+      // Si falla catálogo temporalmente, mantener respuesta original
+    }
+  }
   return res.status(result.status).json(result.data);
 });
 
@@ -455,14 +473,42 @@ app.post('/api/contracts/:id/sign', async (req, res) => {
 app.get('/api/appointments', async (req, res) => {
   const params = new URLSearchParams(req.query);
   const result = await fetchService(`${CONTRACTS_SVC}/appointments?${params.toString()}`);
+  if (result.ok && result.data && Array.isArray(result.data.data)) {
+    try {
+      const propsRes = await fetchService(PROPERTIES_SVC);
+      const catalog = Array.isArray(propsRes.data?.data) ? propsRes.data.data : (Array.isArray(propsRes.data) ? propsRes.data : []);
+      result.data.data = result.data.data.map(app => {
+        const pId = app.propertyId || app.property_id;
+        const matched = catalog.find(p => String(p.id) === String(pId));
+        const realTitle = (app.propertyTitle && app.propertyTitle !== 'Inmueble Seleccionado')
+          ? app.propertyTitle
+          : (matched?.title || (pId ? `Inmueble #${pId}` : 'Inmueble'));
+        return {
+          ...app,
+          propertyTitle: realTitle,
+          zone: app.zone || matched?.zone || '',
+          city: app.city || matched?.city || ''
+        };
+      });
+    } catch (_) {}
+  }
   return res.status(result.status).json(result.data);
 });
 
 app.post('/api/appointments', async (req, res) => {
+  let body = { ...req.body };
+  if (!body.propertyTitle || body.propertyTitle === 'Inmueble Seleccionado') {
+    try {
+      const propRes = await fetchService(`${PROPERTIES_SVC}/${body.propertyId}`);
+      if (propRes.ok && (propRes.data?.title || propRes.data?.property?.title)) {
+        body.propertyTitle = propRes.data?.title || propRes.data?.property?.title;
+      }
+    } catch (_) {}
+  }
   const result = await fetchService(`${CONTRACTS_SVC}/appointments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(req.body)
+    body: JSON.stringify(body)
   });
   return res.status(result.status).json(result.data);
 });

@@ -1762,6 +1762,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             propertyId: selectedPropForVisita.id,
+            propertyTitle: selectedPropForVisita.title,
             userId: currentUser.id,
             userName: currentUser.name,
             userPhone: phone,
@@ -1812,25 +1813,45 @@
       }
 
       citas.forEach(c => {
-        const isPresencial = c.visit_type === 'PRESENCIAL';
+        const isPresencial = (c.visitType || c.visit_type) === 'PRESENCIAL';
         const isConfirmada = c.status === 'CONFIRMADA';
+        const pId = c.propertyId || c.property_id || '';
+        const matchedProp = propertiesCache.find(p => String(p.id) === String(pId));
+        
+        // Resolver título real del inmueble
+        const propTitle = (c.propertyTitle && c.propertyTitle !== 'Inmueble Seleccionado')
+          ? c.propertyTitle
+          : (matchedProp?.title || (pId ? `Inmueble #${pId}` : 'Inmueble'));
+          
+        const zoneCity = (c.zone && c.city) 
+          ? `${c.zone}, ${c.city}` 
+          : (matchedProp ? `${matchedProp.zone}, ${matchedProp.city}` : '');
+          
+        const userName = c.userName || c.user_name || 'Cliente';
+        const userPhone = c.userPhone || c.user_phone || '';
+        const rawDate = c.visitDate || c.visit_date || '';
+        const visitDateStr = rawDate ? (String(rawDate).includes('T') ? rawDate.split('T')[0] : String(rawDate)) : 'Por coordinar';
+        const visitTimeStr = c.visitTime || c.visit_time || '10:00 AM';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><strong>${c.id}</strong></td>
           <td>
-            <strong>${c.property_title}</strong>
-            <div style="font-size:0.72rem; color:var(--text-muted);">${c.zone ? (c.zone + ', ' + c.city) : ''}</div>
+            <strong style="color:var(--text-main); font-size:0.88rem;">${propTitle}</strong>
+            ${zoneCity ? `<div style="font-size:0.73rem; color:var(--text-muted); margin-top:2px;">📍 ${zoneCity}</div>` : ''}
           </td>
-          <td>${c.user_name}</td>
-          <td>${c.user_phone || '&mdash;'}</td>
-          <td><strong>${c.visit_date ? c.visit_date.split('T')[0] : ''}</strong> ${c.visit_time}</td>
+          <td><strong>${userName}</strong></td>
+          <td>${userPhone ? `<span style="font-weight:600;">📱 ${userPhone}</span>` : '&mdash;'}</td>
           <td>
-            <span style="background:${isPresencial ? '#e0f2fe' : '#f5f3ff'}; color:${isPresencial ? '#0284c7' : '#7c3aed'}; padding:0.2rem 0.5rem; border-radius:4px; font-weight:700; font-size:0.74rem;">
+            <div style="font-weight:700;">📅 ${visitDateStr}</div>
+            <div style="font-size:0.74rem; color:var(--brand); font-weight:600; margin-top:3px;">⏰ ${visitTimeStr}</div>
+          </td>
+          <td>
+            <span style="background:${isPresencial ? '#e0f2fe' : '#f5f3ff'}; color:${isPresencial ? '#0284c7' : '#7c3aed'}; padding:0.25rem 0.6rem; border-radius:6px; font-weight:700; font-size:0.74rem;">
               ${isPresencial ? '🚶 Presencial' : '💻 Virtual 3D'}
             </span>
           </td>
-          <td style="font-size:0.76rem; max-width:200px;">${c.notes || 'Sin observaciones'}</td>
+          <td style="font-size:0.78rem; max-width:200px; color:var(--text-muted);">${c.notes || 'Sin observaciones'}</td>
           <td>
             <span style="background:${isConfirmada ? '#ecfdf5' : '#f1f5f9'}; color:${isConfirmada ? '#059669' : '#64748b'}; padding:0.25rem 0.6rem; border-radius:6px; font-weight:700; font-size:0.75rem;">
               ${c.status}
@@ -1842,7 +1863,7 @@
                 <button class="btn btn-emerald" style="padding:0.3rem 0.6rem; font-size:0.72rem;" onclick="cambiarEstadoCita('${c.id}', 'REALIZADA')">Concluida</button>
                 <button class="btn-logout" style="padding:0.3rem 0.6rem; font-size:0.72rem;" onclick="cambiarEstadoCita('${c.id}', 'CANCELADA')">Cancelar</button>
               </div>
-            ` : `<span style="font-size:0.75rem; color:var(--text-muted);">Cita registrada</span>`}
+            ` : `<span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">Cita registrada</span>`}
           </td>
         `;
         tbody.appendChild(tr);
@@ -1957,15 +1978,21 @@
 
       reservations.forEach(r => {
         const isActiva = r.status === 'ACTIVA';
+        const pId = r.propertyId || r.property_id || '';
+        const propTitle = r.propertyTitle || r.property_title || r.prop_title || (propertiesCache.find(p => String(p.id) === String(pId))?.title) || (pId ? `Inmueble #${pId}` : 'Inmueble');
+        const userName = r.userName || r.user_name || 'Comprador';
+        const userPhone = r.userPhone || r.user_phone || '';
+        const depositAmount = parseFloat(r.depositAmount || r.deposit_amount || 0);
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><strong>${r.id}</strong></td>
-          <td>${r.prop_title}</td>
+          <td><strong>${r.id || r.reservationId}</strong></td>
+          <td><strong>${propTitle}</strong></td>
           <td>
-            <strong>${r.user_name}</strong>
-            <div style="font-size:0.73rem; color:var(--text-muted); font-weight:600;">📱 ${r.user_phone || 'Sin número'}</div>
+            <strong>${userName}</strong>
+            <div style="font-size:0.73rem; color:var(--text-muted); font-weight:600;">📱 ${userPhone || 'Sin número'}</div>
           </td>
-          <td><strong style="color:var(--emerald);">$${parseFloat(r.deposit_amount).toLocaleString()} USD</strong></td>
+          <td><strong style="color:var(--emerald);">$${depositAmount.toLocaleString()} USD</strong></td>
           <td>
             <span style="background:${isActiva ? '#fffbeb' : '#f1f5f9'}; color:${isActiva ? '#b45309' : '#64748b'}; padding:0.25rem 0.6rem; border-radius:6px; font-weight:700; font-size:0.75rem;">
               ${r.status}
@@ -1976,8 +2003,8 @@
             ${isActiva ? `
               <div style="display:flex; gap:0.4rem;">
                 ${currentUser.role === 'CLIENTE' || currentUser.role === 'ADMIN' ? `
-                  <button class="btn btn-emerald" style="padding:0.35rem 0.75rem; font-size:0.75rem;" onclick="comprarDefinitivoBD('${r.id}')">Formalizar Compra</button>
-                  <button class="btn-logout" style="padding:0.35rem 0.6rem; font-size:0.75rem;" onclick="cancelarReservaBD('${r.id}')">Cancelar (Rollback)</button>
+                  <button class="btn btn-emerald" style="padding:0.35rem 0.75rem; font-size:0.75rem;" onclick="comprarDefinitivoBD('${r.id || r.reservationId}')">Formalizar Compra</button>
+                  <button class="btn-logout" style="padding:0.35rem 0.6rem; font-size:0.75rem;" onclick="cancelarReservaBD('${r.id || r.reservationId}')">Cancelar (Rollback)</button>
                 ` : `
                   <span style="font-size:0.75rem; color:var(--text-muted);">En trámite bancario</span>
                 `}
@@ -2052,20 +2079,27 @@
 
       contracts.forEach(c => {
         const isFirmado = c.status === 'FIRMADO_NOTARIADO';
+        const pId = c.propertyId || c.property_id || '';
+        const propTitle = c.propertyTitle || c.property_title || (propertiesCache.find(p => String(p.id) === String(pId))?.title) || (pId ? `Inmueble #${pId}` : 'Inmueble');
+        const contractType = c.contractType || c.contract_type || 'CONTRATO_ARRAS';
+        const totalAmount = parseFloat(c.totalAmount || c.total_amount || 0);
+        const signedBy = c.signedBy || c.signed_by || '';
+        const contractId = c.contractNumber || c.id;
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><strong>${c.id}</strong></td>
-          <td>${c.property_title}</td>
-          <td>${c.contract_type}</td>
-          <td><strong>$${parseFloat(c.total_amount).toLocaleString()} USD</strong></td>
+          <td><strong>${contractId}</strong></td>
+          <td>${propTitle}</td>
+          <td>${contractType}</td>
+          <td><strong>$${totalAmount.toLocaleString()} USD</strong></td>
           <td>
             <span style="background:${isFirmado ? '#ecfdf5' : '#e0f2fe'}; color:${isFirmado ? '#059669' : '#0284c7'}; padding:0.25rem 0.6rem; border-radius:6px; font-weight:700; font-size:0.75rem;">
               ${c.status}
             </span>
           </td>
-          <td>${c.signed_by || 'Pendiente de firma'}</td>
+          <td>${signedBy || 'Pendiente de firma'}</td>
           <td>
-            <button class="btn btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.75rem;" onclick="verContratoModal('${c.id}', '${c.property_title}', ${c.total_amount}, '${c.signed_by}')">
+            <button class="btn btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.75rem;" onclick="verContratoModal('${contractId}', '${propTitle}', ${totalAmount}, '${signedBy}')">
               ${isFirmado ? '📄 Ver Escritura' : (currentUser.role === 'LEGAL' ? '⚖️ Dar Fe Pública' : '✍️ Firmar Digital')}
             </button>
           </td>
