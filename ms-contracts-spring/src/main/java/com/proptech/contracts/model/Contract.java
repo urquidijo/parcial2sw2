@@ -26,11 +26,20 @@ public class Contract {
     @Column(name = "property_id", nullable = false)
     private String propertyId;
 
+    @Column(name = "property_title")
+    private String propertyTitle;
+
     @Column(name = "client_id", nullable = false)
     private String clientId;
 
+    @Column(name = "user_name")
+    private String userName;
+
     @Column(name = "agent_id")
     private String agentId;
+
+    @Column(name = "signed_by", columnDefinition = "TEXT")
+    private String signedBy;
 
     @Column(name = "payment_reference_id")
     private String paymentReferenceId;
@@ -57,12 +66,14 @@ public class Contract {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
         this.status = ContractStatus.BORRADOR;
+        this.signedBy = "";
     }
 
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
+        if (this.signedBy == null) this.signedBy = "";
     }
 
     @PreUpdate
@@ -86,11 +97,20 @@ public class Contract {
     public String getPropertyId() { return propertyId; }
     public void setPropertyId(String propertyId) { this.propertyId = propertyId; }
 
+    public String getPropertyTitle() { return propertyTitle; }
+    public void setPropertyTitle(String propertyTitle) { this.propertyTitle = propertyTitle; }
+
     public String getClientId() { return clientId; }
     public void setClientId(String clientId) { this.clientId = clientId; }
 
+    public String getUserName() { return userName; }
+    public void setUserName(String userName) { this.userName = userName; }
+
     public String getAgentId() { return agentId; }
     public void setAgentId(String agentId) { this.agentId = agentId; }
+
+    public String getSignedBy() { return signedBy; }
+    public void setSignedBy(String signedBy) { this.signedBy = signedBy; }
 
     public String getPaymentReferenceId() { return paymentReferenceId; }
     public void setPaymentReferenceId(String paymentReferenceId) { this.paymentReferenceId = paymentReferenceId; }

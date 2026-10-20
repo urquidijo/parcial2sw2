@@ -18,7 +18,7 @@ import java.util.UUID;
 @Service
 public class ContractService {
 
-    private static final Logger log = LoggerFactory.getLogger(ContractService.name);
+    private static final Logger log = LoggerFactory.getLogger(ContractService.class);
     private final ContractRepository contractRepository;
 
     public ContractService(ContractRepository contractRepository) {

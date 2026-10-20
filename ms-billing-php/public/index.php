@@ -21,27 +21,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'];
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
-$headers = getallheaders();
+$headers = function_exists('getallheaders') ? getallheaders() : [];
 
 $billingCtrl = new BillingController();
 $commissionCtrl = new CommissionController();
 
 $response = null;
 
-// Routing básico y limpio
+// Routing REST
 if ($uri === '/api/v1/billing/charges' && $method === 'POST') {
     $response = $billingCtrl->charge($body, $headers);
 } elseif ($uri === '/api/v1/billing/refunds' && $method === 'POST') {
     $response = $billingCtrl->refund($body);
+} elseif ($uri === '/api/v1/billing/reservations' && $method === 'POST') {
+    $response = $billingCtrl->createReservation($body);
+} elseif ($uri === '/api/v1/billing/reservations' && $method === 'GET') {
+    $userId = $_GET['userId'] ?? null;
+    $response = $billingCtrl->getReservations($userId);
+} elseif (preg_match('#^/api/v1/billing/reservations/([^/]+)/cancel$#', $uri, $matches) && $method === 'POST') {
+    $response = $billingCtrl->cancelReservation($matches[1]);
+} elseif (preg_match('#^/api/v1/billing/reservations/([^/]+)/buy$#', $uri, $matches) && $method === 'POST') {
+    $response = $billingCtrl->buyReservation($matches[1]);
 } elseif ($uri === '/api/v1/commissions/calculate' && $method === 'POST') {
     $response = $commissionCtrl->calculate($body);
 } elseif (preg_match('#^/api/v1/commissions/agent/([^/]+)$#', $uri, $matches) && $method === 'GET') {
     $response = $commissionCtrl->getAgentBalance($matches[1]);
-} elseif ($uri === '/' || $uri === '/health') {
+} elseif ($uri === '/api/v1/finances' || $uri === '/api/v1/finances/summary') {
+    $response = $billingCtrl->getFinances();
+} elseif ($uri === '/' || $uri === '/health' || $uri === '/api/v1/health' || $uri === '/api/health') {
     $response = [
         'service' => 'ms-billing-php',
         'status' => 'UP',
-        'database' => 'Amazon DynamoDB (Local :8005)',
+        'database' => 'Amazon DynamoDB (AWS Cloud us-east-1)',
+        'tables' => ['HabitatCharges', 'HabitatReservations', 'HabitatCommissions'],
         'timestamp' => date('c')
     ];
 } else {

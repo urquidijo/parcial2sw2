@@ -1,0 +1,7 @@
+vendor/
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+README.md

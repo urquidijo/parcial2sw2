@@ -2,58 +2,50 @@
 
 namespace PropTech\Billing\Controllers;
 
+use PropTech\Billing\Services\DynamoStorageService;
+
 class CommissionController {
+    private DynamoStorageService $storage;
+
+    public function __construct() {
+        $this->storage = new DynamoStorageService();
+    }
 
     /**
-     * Calcula la comisión inmobiliaria:
-     * - Venta: 3% del valor total (compartido o directo)
-     * - Alquiler: 50% o 100% del primer canon de arrendamiento
+     * Calcula y liquida la comisión de un agente por una venta inmobiliaria
      */
     public function calculate(array $input): array {
-        $transactionType = strtoupper($input['transactionType'] ?? 'VENTA');
-        $totalAmount = (float)($input['totalAmount'] ?? 0);
-        $agentId = $input['agentId'] ?? 'BROKER-GENERAL';
+        $agentId = $input['agentId'] ?? null;
+        $propertyPrice = (float)($input['propertyPrice'] ?? 0);
+        $propertyId = (string)($input['propertyId'] ?? 'PROP-UNKNOWN');
 
-        if ($totalAmount <= 0) {
+        if (!$agentId || $propertyPrice <= 0) {
             http_response_code(400);
-            return ['success' => false, 'error' => 'El totalAmount debe ser mayor a cero'];
+            return [
+                'success' => false,
+                'error' => 'PARAMETROS_INVALIDOS',
+                'message' => 'agentId y propertyPrice mayor a 0 son obligatorios'
+            ];
         }
 
-        if ($transactionType === 'VENTA') {
-            $percentage = 3.0; // 3% estándar de venta inmobiliaria
-            $commissionAmount = $totalAmount * 0.03;
-        } else {
-            $percentage = 50.0; // 50% del primer mes de alquiler
-            $commissionAmount = $totalAmount * 0.50;
-        }
+        $res = $this->storage->saveCommission($agentId, $propertyPrice, $propertyId);
 
-        $taxRetention = $commissionAmount * 0.13; // 13% impuesto / retención fiscal
-        $netCommission = $commissionAmount - $taxRetention;
-
-        http_response_code(200);
+        http_response_code(201);
         return [
             'success' => true,
-            'agentId' => $agentId,
-            'transactionType' => $transactionType,
-            'totalAmount' => $totalAmount,
-            'commissionPercentage' => $percentage . '%',
-            'grossCommission' => round($commissionAmount, 2),
-            'taxRetention13Pct' => round($taxRetention, 2),
-            'netCommissionToPay' => round($netCommission, 2),
-            'currency' => $input['currency'] ?? 'USD',
-            'calculatedAt' => date('c')
+            'message' => 'Comisión calculada con éxito (3% menos 13% retención) y persistida en Amazon DynamoDB.',
+            'data' => $res
         ];
     }
 
+    /**
+     * Obtiene el balance de comisiones de un agente
+     */
     public function getAgentBalance(string $agentId): array {
+        $data = $this->storage->getAgentCommissions($agentId);
         return [
             'success' => true,
-            'agentId' => $agentId,
-            'totalEarnedYTD' => 18450.00,
-            'pendingPayout' => 3200.00,
-            'completedDealsCount' => 7,
-            'tier' => 'SENIOR_BROKER_GOLD',
-            'lastUpdated' => date('c')
+            'data' => $data
         ];
     }
 }

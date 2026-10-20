@@ -8,8 +8,7 @@ class BillingController {
     private DynamoStorageService $storage;
 
     public function __construct() {
-        $endpoint = getenv('DYNAMODB_ENDPOINT') ?: 'http://localhost:8005';
-        $this->storage = new DynamoStorageService($endpoint);
+        $this->storage = new DynamoStorageService();
     }
 
     /**
@@ -33,7 +32,7 @@ class BillingController {
             return [
                 'success' => false,
                 'error' => 'FONDOS_INSUFICIENTES',
-                'message' => 'La tarjeta o pasarela bancaria rechazó la transacción por límite o fondos insuficientes.'
+                'message' => 'La pasarela bancaria rechazó la transacción por límite o fondos insuficientes.'
             ];
         }
 
@@ -59,7 +58,7 @@ class BillingController {
             'status' => 'PAID',
             'amount' => $charge['amount'],
             'currency' => $charge['currency'],
-            'message' => 'Cobro de arras procesado con éxito y registrado en DynamoDB.',
+            'message' => 'Cobro de arras procesado con éxito y registrado en Amazon DynamoDB en la nube.',
             'ttlHours' => 48
         ];
     }
@@ -78,23 +77,72 @@ class BillingController {
 
         $refunded = $this->storage->refundCharge($paymentId, $reason);
 
-        if (!$refunded) {
-            // Si no estaba en BD o fue mock, devolvemos confirmación de reembolso igualmente
-            $refunded = [
-                'paymentId' => $paymentId,
-                'status' => 'REFUNDED',
-                'refundReason' => $reason,
-                'refundedAt' => date('c')
-            ];
-        }
-
         http_response_code(200);
         return [
             'success' => true,
             'paymentId' => $paymentId,
             'status' => 'REFUNDED',
-            'message' => 'Compensación completada: Fondos devueltos al cliente exitosamente.',
+            'message' => 'Compensación completada: Fondos devueltos al cliente exitosamente en DynamoDB.',
             'details' => $refunded
+        ];
+    }
+
+    /**
+     * Guarda una reserva en DynamoDB con TTL de 48 horas
+     */
+    public function createReservation(array $input): array {
+        $reservationId = $input['reservationId'] ?? ('RES-' . rand(1000, 9999));
+        $res = [
+            'reservationId' => $reservationId,
+            'propertyId' => $input['propertyId'],
+            'userId' => $input['userId'],
+            'userName' => $input['userName'] ?? 'Cliente',
+            'userPhone' => $input['userPhone'] ?? '',
+            'depositAmount' => (float)($input['depositAmount'] ?? 5000),
+            'paymentId' => $input['paymentId'] ?? ('PAY-' . uniqid()),
+            'contractNumber' => $input['contractNumber'] ?? ('ARRAS-' . rand(1000, 9999)),
+            'status' => 'ACTIVA'
+        ];
+
+        $saved = $this->storage->saveReservation($res);
+        http_response_code(201);
+        return [
+            'success' => true,
+            'message' => 'Reserva guardada con TTL de 48h en Amazon DynamoDB',
+            'data' => $saved
+        ];
+    }
+
+    public function getReservations(?string $userId = null): array {
+        $list = $this->storage->getAllReservations($userId);
+        return [
+            'success' => true,
+            'count' => count($list),
+            'data' => $list
+        ];
+    }
+
+    public function cancelReservation(string $id): array {
+        $this->storage->updateReservationStatus($id, 'CANCELADA_REEMBOLSADA');
+        return [
+            'success' => true,
+            'message' => "Reserva #$id cancelada y reembolsada en DynamoDB"
+        ];
+    }
+
+    public function buyReservation(string $id): array {
+        $this->storage->updateReservationStatus($id, 'COMPRADA');
+        return [
+            'success' => true,
+            'message' => "Reserva #$id formalizada a COMPRADA en DynamoDB"
+        ];
+    }
+
+    public function getFinances(): array {
+        $fin = $this->storage->getFinancialSummary();
+        return [
+            'success' => true,
+            'data' => $fin
         ];
     }
 }

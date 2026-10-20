@@ -13,8 +13,10 @@ export enum PropertyType {
 
 export enum PropertyStatus {
   DISPONIBLE = 'DISPONIBLE',
+  RESERVADO = 'RESERVADO',
   RESERVADO_PENDIENTE = 'RESERVADO_PENDIENTE',
   RESERVADO_CONFIRMADO = 'RESERVADO_CONFIRMADO',
+  COMPRADO = 'COMPRADO',
   VENDIDO = 'VENDIDO',
   ALQUILADO = 'ALQUILADO',
 }
@@ -30,7 +32,7 @@ export class LocationPoint {
 
 export const LocationPointSchema = SchemaFactory.createForClass(LocationPoint);
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } })
 export class Property {
   @Prop({ required: true, unique: true, index: true })
   code: string;
@@ -50,6 +52,9 @@ export class Property {
   @Prop({ required: true })
   price: number;
 
+  @Prop({ default: 5000 })
+  deposit: number;
+
   @Prop({ required: true, default: 'USD' })
   currency: string;
 
@@ -65,17 +70,17 @@ export class Property {
   @Prop({ default: 0 })
   parkingSlots: number;
 
-  @Prop({ required: true })
+  @Prop({ default: 'Ubicación central' })
   address: string;
 
   @Prop({ required: true, index: true })
   city: string;
 
-  @Prop()
+  @Prop({ required: true })
   zone: string;
 
-  @Prop({ type: LocationPointSchema, required: true })
-  location: LocationPoint;
+  @Prop({ type: LocationPointSchema, required: false })
+  location?: LocationPoint;
 
   @Prop({ type: [String], default: [] })
   amenities: string[];
@@ -84,13 +89,34 @@ export class Property {
   photos: string[];
 
   @Prop()
+  image?: string;
+
+  @Prop()
   virtualTour3dUrl?: string;
 
+  @Prop({ default: '' })
+  folioReal: string;
+
+  @Prop({ default: 120.00 })
+  maintenanceFee: number;
+
+  @Prop({ default: 'ENTREGA_INMEDIATA' })
+  deliveryType: string;
+
+  @Prop({ default: 'Carlos Broker' })
+  brokerName: string;
+
   @Prop({ type: Object, default: {} })
-  dynamicAttributes: Record<string, any>; // Atributos polimórficos
+  dynamicAttributes: Record<string, any>;
+
+  @Prop()
+  reservedBy?: string;
 
   @Prop()
   reservedByClientId?: string;
+
+  @Prop()
+  reservedPhone?: string;
 
   @Prop()
   reservationLockExpiresAt?: Date;
@@ -98,6 +124,9 @@ export class Property {
 
 export const PropertySchema = SchemaFactory.createForClass(Property);
 
-// Índice geoespacial para búsquedas por radio y proximidad
-PropertySchema.index({ location: '2dsphere' });
+PropertySchema.virtual('id').get(function () {
+  return this._id ? this._id.toString() : this.code;
+});
+
 PropertySchema.index({ price: 1, status: 1 });
+PropertySchema.index({ city: 1, zone: 1 });
