@@ -8,6 +8,9 @@ RUN npm install --omit=dev && npm cache clean --force
 
 COPY server.js ./
 COPY mfe-shell ./mfe-shell
+COPY mfe-properties-react ./mfe-properties-react
+COPY mfe-contracts-angular ./mfe-contracts-angular
+COPY mfe-bi-vue ./mfe-bi-vue
 
 ENV NODE_ENV=production
 ENV PORT=5000

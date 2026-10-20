@@ -8,9 +8,6 @@ npm-debug.log
 ms-properties-nestjs
 ms-contracts-spring
 ms-billing-php
-mfe-properties-react
-mfe-contracts-angular
-mfe-bi-vue
 bff-graphql-gateway
 saga-orchestrator
 postgres_data

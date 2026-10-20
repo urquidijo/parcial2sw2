@@ -760,7 +760,47 @@
       color: var(--brand);
       box-shadow: var(--shadow-sm);
     }
+
+    /* Microfrontends UI Integrations */
+    .mfe-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .mfe-badge.react { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+    .mfe-badge.angular { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+    .mfe-badge.vue { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+    .filter-chip {
+      padding: 0.4rem 0.85rem;
+      border-radius: 9999px;
+      border: 1px solid var(--border);
+      background: white;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-chip.active {
+      background: var(--brand);
+      color: white;
+      border-color: var(--brand);
+    }
   </style>
+
+  <!-- Runtimes para Microfrontends Políglotas (React 18 & Vue 3) -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <!-- Carga Dinámica de Microfrontends Independientes (React, Angular, Vue) -->
+  <script src="/mfe/properties/src/PropertyExplorer.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/properties/src/PropertyExplorer.js'"></script>
+  <script src="/mfe/contracts/src/app/contracts.component.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/contracts/src/app/contracts.component.js'"></script>
+  <script src="/mfe/bi/src/BIDashboard.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/bi/src/BIDashboard.js'"></script>
 </head>
 <body>
 
@@ -919,39 +959,9 @@
           </div>
         </div>
 
-        <!-- Barra de Filtros Inmobiliarios -->
-        <div class="filter-bar" style="margin-top:1.5rem;">
-          <input type="text" id="searchInput" class="search-input" placeholder="🔍 Buscar por título, zona, ciudad o folio real..." oninput="applyFilters()">
-          
-          <select id="typeFilter" class="filter-select" onchange="applyFilters()">
-            <option value="ALL">🏢 Todos los Tipos</option>
-            <option value="DEPARTAMENTO">Departamentos</option>
-            <option value="CASA">Casas Residenciales</option>
-            <option value="TERRENO">Terrenos / Lotes</option>
-          </select>
-
-          <select id="statusFilter" class="filter-select" onchange="applyFilters()">
-            <option value="ALL">🔘 Todos los Estados</option>
-            <option value="DISPONIBLE">🟢 Disponibles</option>
-            <option value="RESERVADO">🟡 En Reserva</option>
-            <option value="COMPRADO">🔴 Vendidos</option>
-          </select>
-
-          <select id="cityFilter" class="filter-select" onchange="applyFilters()">
-            <option value="ALL">📍 Todas las Ciudades</option>
-            <option value="La Paz">La Paz</option>
-            <option value="Santa Cruz">Santa Cruz</option>
-            <option value="Cochabamba">Cochabamba</option>
-          </select>
-
-          <button id="btnResetAllAdmin" class="btn btn-secondary hidden" type="button" onclick="restablecerTodosInmuebles()" style="margin-left:auto; font-size:0.8rem; background:#ecfdf5; border-color:#a7f3d0; color:#047857;">
-            🔄 Reabrir Todos a la Venta (Admin)
-          </button>
-        </div>
-
-        <!-- Grid de Propiedades -->
-        <div class="properties-grid" id="propertiesList" style="margin-top:1.5rem;">
-          <!-- Renderizado dinámicamente -->
+        <!-- Microfrontend Catálogo y Marketplace Inmobiliario (React 18) -->
+        <div style="margin-top:1.5rem;">
+          <mfe-properties id="mfePropertiesComponent"></mfe-properties>
         </div>
       </section>
 
@@ -1015,80 +1025,14 @@
         </div>
       </section>
 
-      <!-- SECCIÓN 4: CONTRATOS Y MINUTAS LEGALES -->
+      <!-- SECCIÓN 4: CONTRATOS Y MINUTAS LEGALES (ANGULAR 17 MFE) -->
       <section id="viewContratos" class="hidden">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
-          <div>
-            <h2 style="font-size:1.4rem; font-weight:800;">📜 Notaría Digital & Escrituras Públicas</h2>
-            <p style="font-size:0.85rem; color:var(--text-muted);">Protocolos notariales ACID en PostgreSQL con certificación de no gravamen y firma digital.</p>
-          </div>
-        </div>
-
-        <div class="data-table-wrapper">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Protocolo</th>
-                <th>Inmueble</th>
-                <th>Tipo de Contrato</th>
-                <th>Monto Pactado</th>
-                <th>Estado Notarial</th>
-                <th>Firmantes Registrados</th>
-                <th>Documentación</th>
-              </tr>
-            </thead>
-            <tbody id="contratosTableBody">
-              <!-- Renderizado dinámicamente -->
-            </tbody>
-          </table>
-        </div>
+        <mfe-contracts id="mfeContractsComponent"></mfe-contracts>
       </section>
 
-      <!-- SECCIÓN 5: CRM FINANCIERO Y COMISIONES (AGENTE / ADMIN) -->
+      <!-- SECCIÓN 5: CRM FINANCIERO Y COMISIONES (VUE 3 MFE) -->
       <section id="viewFinanzas" class="hidden">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
-          <div>
-            <h2 style="font-size:1.4rem; font-weight:800;">💼 Inteligencia de Negocios & Comisiones</h2>
-            <p style="font-size:0.85rem; color:var(--text-muted);">Control de pagos, liquidación de comisiones de red y auditoría financiera.</p>
-          </div>
-        </div>
-
-        <div class="hero-kpis" style="margin-bottom:1.5rem;">
-          <div class="kpi-card">
-            <span class="label">Volumen Total Negociado</span>
-            <span class="value" id="kpiTotalVolume">$0.00</span>
-            <span class="sub">Cartera evaluada</span>
-          </div>
-          <div class="kpi-card emerald">
-            <span class="label" id="labelComisiones">Comisiones Liquidadas</span>
-            <span class="value" id="kpiCommissions">$0.00</span>
-            <span class="sub">Neto post-retención impositiva (13% IVA/IT)</span>
-          </div>
-          <div class="kpi-card amber">
-            <span class="label">Arras en Custodia</span>
-            <span class="value" id="kpiArras">$0.00</span>
-            <span class="sub">Garantías fiduciarias activas</span>
-          </div>
-        </div>
-
-        <div class="data-table-wrapper">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Comprobante</th>
-                <th>Concepto</th>
-                <th>Inmueble</th>
-                <th>Monto</th>
-                <th>Método de Pago</th>
-                <th>Fecha de Registro</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody id="finanzasTableBody">
-              <!-- Renderizado dinámicamente -->
-            </tbody>
-          </table>
-        </div>
+        <mfe-bi id="mfeBiComponent"></mfe-bi>
       </section>
 
       <!-- SECCIÓN 6: GESTIÓN DE USUARIOS Y ROLES (ADMIN GLOBAL) -->
@@ -1435,6 +1379,36 @@
     let selectedPropForVisita = null;
     let selectedContractId = null;
 
+    window.API_URL = API_URL;
+
+    // Puente de Autenticación y Contexto Global para Microfrontends
+    window.HabitatAuth = {
+      getUser: () => currentUser,
+      setUser: (u) => { currentUser = u; }
+    };
+
+    // Bus de Eventos Desacoplado para Microfrontends (React, Angular, Vue)
+    window.addEventListener('habitat:reserve:start', (e) => {
+      if (e.detail) abrirModalReserva(e.detail);
+    });
+
+    window.addEventListener('habitat:visit:start', (e) => {
+      if (e.detail) abrirModalCita(e.detail);
+    });
+
+    window.addEventListener('habitat:contract:sign', (e) => {
+      if (e.detail && e.detail.contractId) {
+        selectedContractId = e.detail.contractId;
+        firmarContratoSeleccionado();
+      }
+    });
+
+    window.addEventListener('habitat:contract:download', (e) => {
+      if (e.detail && e.detail.contractId) {
+        verMinutaContrato(e.detail.contractId);
+      }
+    });
+
     // INICIALIZACIÓN
     window.onload = function() {
       const savedUser = sessionStorage.getItem('habitat_real_user');
@@ -1687,7 +1661,10 @@
         if (result.success) {
           propertiesCache = result.data;
           actualizarHeroKPIs(propertiesCache);
-          renderPropiedades(propertiesCache);
+          if (document.getElementById('propertiesList')) {
+            renderPropiedades(propertiesCache);
+          }
+          window.dispatchEvent(new CustomEvent('habitat:refresh:properties'));
         }
       } catch (e) {
         console.error('Error al cargar propiedades:', e);
@@ -1806,7 +1783,9 @@
 
     // MODAL AGENDAR VISITA
     function abrirModalCita(propertyId) {
-      selectedPropForVisita = propertiesCache.find(p => p.id === propertyId);
+      selectedPropForVisita = (typeof propertyId === 'object' && propertyId !== null)
+        ? propertyId
+        : propertiesCache.find(p => p.id === propertyId);
       if (!selectedPropForVisita) return;
 
       document.getElementById('visitaPropTitle').innerText = selectedPropForVisita.title;
@@ -1948,7 +1927,9 @@
 
     // MODAL DE RESERVA CON ARRAS (SAGA)
     function abrirModalReserva(propertyId) {
-      selectedPropForRes = propertiesCache.find(p => p.id === propertyId);
+      selectedPropForRes = (typeof propertyId === 'object' && propertyId !== null)
+        ? propertyId
+        : propertiesCache.find(p => p.id === propertyId);
       if (!selectedPropForRes) return;
 
       document.getElementById('modalPropName').innerText = selectedPropForRes.title;
