@@ -49,35 +49,6 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Top Utility Bar */
-    .top-utility {
-      background: #0b132b;
-      color: #94a3b8;
-      padding: 0.45rem 2rem;
-      font-size: 0.75rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-    .db-badges-container {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .db-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      padding: 0.15rem 0.55rem;
-      border-radius: 9999px;
-      font-weight: 700;
-      font-size: 0.68rem;
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      border: 1px solid rgba(52, 211, 153, 0.25);
-    }
-
     /* Header & Navigation */
     header {
       background: #ffffff;
@@ -869,18 +840,6 @@
 
   <!-- APLICACIÓN PRINCIPAL HABITAT PRO -->
   <div id="appContainer" class="hidden">
-    
-    <!-- Top Bar -->
-    <div class="top-utility" id="topUtilityBar">
-      <div class="db-badges-container">
-        <span>INFRAESTRUCTURA DISTRIBUIDA:</span>
-        <div class="db-badge">🐘 PostgreSQL 16 (contracts_db :5435)</div>
-        <div class="db-badge">🍃 MongoDB 7.0 (:27017)</div>
-        <div class="db-badge">⚡ DynamoDB Local (:8005)</div>
-        <div class="db-badge">🔐 Keycloak SSO (:8080)</div>
-      </div>
-      <div>Plataforma PropTech v2.4 Enterprise | Transacciones Saga ACID</div>
-    </div>
 
     <!-- Header Principal -->
     <header>
@@ -1470,8 +1429,13 @@
 
     // LOGIN
     async function loginConCredenciales() {
-      const email = document.getElementById('loginEmail').value;
+      const email = document.getElementById('loginEmail').value.trim();
       const pass = document.getElementById('loginPass').value;
+
+      if (!email || !pass) {
+        alert('Por favor ingrese su correo electrónico y su contraseña.');
+        return;
+      }
 
       try {
         const res = await fetch(`${API_URL}/auth/login`, {
@@ -1481,13 +1445,13 @@
         });
         const data = await res.json();
 
-        if (data.success) {
+        if (res.ok && data.success) {
           currentUser = data.user;
           sessionStorage.setItem('habitat_real_user', JSON.stringify(currentUser));
           showApp();
           showToast(`Bienvenido ${currentUser.name} (${currentUser.role})`);
         } else {
-          alert('Error: ' + data.message);
+          alert('❌ Error de Autenticación:\n\n' + (data.message || 'Credenciales inválidas. Verifique su correo o contraseña.'));
         }
       } catch (e) {
         alert('Fallo de conexión al backend: ' + e.message);
@@ -1523,39 +1487,16 @@
       };
       document.getElementById('headerUserRole').innerText = roleLabels[currentUser.role] || currentUser.role;
 
-      // Personalizar Top Utility Bar y Vista Catálogo según Rol
-      const topUtil = document.getElementById('topUtilityBar');
+      // Personalizar Vista Catálogo según Rol
       const portfolioKpis = document.getElementById('portfolioKpis');
       const buyerHeroBanner = document.getElementById('buyerHeroBanner');
 
       if (currentUser.role === 'CLIENTE') {
         if (portfolioKpis) portfolioKpis.classList.add('hidden');
         if (buyerHeroBanner) buyerHeroBanner.classList.remove('hidden');
-        if (topUtil) {
-          topUtil.innerHTML = `
-            <div style="display:flex; align-items:center; gap:0.5rem; font-weight:600; color:#38bdf8;">
-              <span>✨ Portal Exclusivo para Compradores e Inversionistas</span>
-              <span style="opacity:0.35;">|</span>
-              <span style="color:#94a3b8; font-weight:400;">Asesoría personalizada, visitas guiadas y reservas seguras con fe notarial</span>
-            </div>
-            <div style="color:#cbd5e1; font-weight:500;">Línea Directa Clientes: <strong>+591 (2) 279-0000</strong></div>
-          `;
-        }
       } else {
         if (portfolioKpis) portfolioKpis.classList.remove('hidden');
         if (buyerHeroBanner) buyerHeroBanner.classList.add('hidden');
-        if (topUtil) {
-          topUtil.innerHTML = `
-            <div class="db-badges-container">
-              <span>INFRAESTRUCTURA DISTRIBUIDA:</span>
-              <div class="db-badge">🐘 PostgreSQL 16 (contracts_db :5435)</div>
-              <div class="db-badge">🍃 MongoDB 7.0 (:27017)</div>
-              <div class="db-badge">⚡ DynamoDB Local (:8005)</div>
-              <div class="db-badge">🔐 Keycloak SSO (:8080)</div>
-            </div>
-            <div>Plataforma PropTech v2.4 Enterprise | Transacciones Saga ACID</div>
-          `;
-        }
       }
 
       configurarNavegacionPorRol();
@@ -1978,10 +1919,13 @@
           await cargarPropiedadesDesdeBD();
           navigate('reservas');
         } else {
-          alert('Error: ' + data.message);
+          const msInfo = data.failedService ? `🚨 Microservicio Fallido: ${data.failedService}\n` : '';
+          const phaseInfo = data.stepNumber ? `📌 Fase de la Saga: Paso ${data.stepNumber} de 3\n` : '';
+          const rollbackNotice = data.rollbackExecuted ? `\n\n🛡️ Compensación Saga (Rollback): El sistema restauró automáticamente el inmueble y los fondos para garantizar consistencia.` : '';
+          alert(`❌ Transacción Distribuida Rechazada:\n\n${msInfo}${phaseInfo}Motivo: ${data.message || data.detail || 'Error no especificado'}${rollbackNotice}`);
         }
       } catch (e) {
-        alert('Error al conectar con la base de datos: ' + e.message);
+        alert('Error de conexión con el API Gateway: ' + e.message);
       }
     }
 

@@ -71,11 +71,28 @@ async function fetchService(url, options = {}) {
 // -------------------------------------------------------------
 
 app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Correo electrónico y contraseña son obligatorios.' });
+  }
+
   const result = await fetchService(`${CONTRACTS_SVC}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(req.body)
+    body: JSON.stringify({ email: email.trim(), password })
   });
+
+  if (result.ok && result.data && result.data.success) {
+    // Verificación estricta de credenciales en el Gateway para garantizar seguridad inmediata
+    if (result.data.user && result.data.user.passwordHash) {
+      if (result.data.user.passwordHash !== password) {
+        return res.status(401).json({ success: false, message: 'Contraseña incorrecta. Verifique sus credenciales.' });
+      }
+      // Ocultar hash confidencial antes de responder al cliente
+      delete result.data.user.passwordHash;
+    }
+  }
+
   return res.status(result.status).json(result.data);
 });
 
@@ -168,6 +185,8 @@ app.post('/api/reservations', async (req, res) => {
     // -----------------------------------------------------------------
     // FASE 1: Bloqueo Preventivo en ms-properties (MongoDB Atlas)
     // -----------------------------------------------------------------
+    // FASE 1: Bloqueo Preventivo en ms-properties (MongoDB Atlas)
+    // -----------------------------------------------------------------
     console.log(`▶ [PASO 1/3] Bloqueando inmueble #${propertyId} en MongoDB Atlas...`);
     const lockRes = await fetchService(`${PROPERTIES_SVC}/${propertyId}/reserve-lock`, {
       method: 'POST',
@@ -176,7 +195,11 @@ app.post('/api/reservations', async (req, res) => {
     });
 
     if (!lockRes.ok) {
-      throw new Error(`[Fase 1 Fallida]: ${lockRes.data.message || 'El inmueble no está disponible en MongoDB'}`);
+      const detail = lockRes.data?.message || lockRes.error || 'El inmueble no está disponible en MongoDB';
+      const err = new Error(detail);
+      err.failedService = 'ms-properties-nestjs (Catálogo / MongoDB Atlas)';
+      err.stepNumber = 1;
+      throw err;
     }
     sagaTrace.step1_locked = true;
     console.log(`✅ [PASO 1 EXITOSO]: Inmueble bloqueado como RESERVADO_PENDIENTE en MongoDB Atlas.`);
@@ -199,15 +222,19 @@ app.post('/api/reservations', async (req, res) => {
       })
     });
 
-    if (!chargeRes.ok || !chargeRes.data.success) {
-      throw new Error(`[Fase 2 Fallida]: ${chargeRes.data.message || 'Fallo en pasarela de pagos DynamoDB'}`);
+    if (!chargeRes.ok || !chargeRes.data?.success) {
+      const detail = chargeRes.data?.message || chargeRes.error || 'Fallo en pasarela de cobro o DynamoDB no disponible';
+      const err = new Error(detail);
+      err.failedService = 'ms-billing-php (Cobros de Arras / Amazon DynamoDB)';
+      err.stepNumber = 2;
+      throw err;
     }
     sagaTrace.step2_charged = true;
     sagaTrace.paymentId = chargeRes.data.paymentId;
     console.log(`✅ [PASO 2A EXITOSO]: Cobro registrado en DynamoDB con ID: ${sagaTrace.paymentId}.`);
 
     // Registrar reserva en tabla de reservas DynamoDB con TTL de 48h
-    await fetchService(`${BILLING_SVC}/billing/reservations`, {
+    const resvSave = await fetchService(`${BILLING_SVC}/billing/reservations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -222,6 +249,13 @@ app.post('/api/reservations', async (req, res) => {
         status: 'ACTIVA'
       })
     });
+    if (!resvSave.ok) {
+      const detail = resvSave.data?.message || resvSave.error || 'Error al persistir registro de reserva con TTL';
+      const err = new Error(detail);
+      err.failedService = 'ms-billing-php (Almacenamiento de Reserva / DynamoDB)';
+      err.stepNumber = 2;
+      throw err;
+    }
     sagaTrace.step2_saved_dynamo = true;
     console.log(`✅ [PASO 2B EXITOSO]: Reserva registrada en DynamoDB con TTL de 48 horas.`);
 
@@ -237,13 +271,17 @@ app.post('/api/reservations', async (req, res) => {
         clientId,
         agentId: 'AGT-CARLOS-BROKER',
         paymentReferenceId: sagaTrace.paymentId,
-        totalAmount: lockRes.data.property?.price || (amount * 10),
+        totalAmount: lockRes.data?.property?.price || (amount * 10),
         depositAmount: amount
       })
     });
 
-    if (!contractRes.ok || contractRes.data.error) {
-      throw new Error(`[Fase 3 Fallida]: ${contractRes.data.message || 'Rechazo notarial o legal en PostgreSQL'}`);
+    if (!contractRes.ok || contractRes.data?.error || contractRes.data?.success === false) {
+      const detail = contractRes.data?.message || contractRes.error || 'Rechazo notarial o de esquema en PostgreSQL';
+      const err = new Error(detail);
+      err.failedService = 'ms-contracts-spring (Legal & Notaría / PostgreSQL Render)';
+      err.stepNumber = 3;
+      throw err;
     }
     sagaTrace.step3_contract_created = true;
     const finalContract = contractRes.data;
@@ -304,7 +342,11 @@ app.post('/api/reservations', async (req, res) => {
 
     return res.status(422).json({
       success: false,
-      message: 'Fallo en la transacción Saga distribuida. Compensación automática ejecutada: ' + err.message,
+      failedService: err.failedService || 'Microservicio del ecosistema',
+      stepNumber: err.stepNumber || 0,
+      message: `Fallo en ${err.failedService || 'la transacción'}: ${err.message}`,
+      detail: err.message,
+      rollbackExecuted: true,
       trace: sagaTrace
     });
   }

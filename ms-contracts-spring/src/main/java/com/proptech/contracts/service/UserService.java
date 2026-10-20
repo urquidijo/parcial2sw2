@@ -42,6 +42,9 @@ public class UserService {
             throw new IllegalArgumentException("Usuario o correo no encontrado en PostgreSQL.");
         }
         User user = userOpt.get();
+        if (password == null || !password.equals(user.getPasswordHash())) {
+            throw new IllegalArgumentException("Contraseña incorrecta. Verifique sus credenciales.");
+        }
         // Generar token JWT simulado en base64
         String tokenPayload = "{\"id\":\"" + user.getId() + "\",\"email\":\"" + user.getEmail() + "\",\"role\":\"" + user.getRole() + "\"}";
         String token = "jwt-token-" + Base64.getEncoder().encodeToString(tokenPayload.getBytes());
