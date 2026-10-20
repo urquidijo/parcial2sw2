@@ -1425,7 +1425,9 @@
   </div>
 
   <script>
-    const API_URL = (window.location.protocol === 'file:') ? 'http://localhost:5000/api' : `${window.location.origin}/api`;
+    const API_URL = window.location.origin.includes('vercel.app')
+      ? 'https://api-gateway-production-c3ed.up.railway.app/api'
+      : ((window.location.protocol === 'file:') ? 'http://localhost:5000/api' : `${window.location.origin}/api`);
 
     let currentUser = null;
     let propertiesCache = [];
