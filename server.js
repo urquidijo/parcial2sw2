@@ -51,10 +51,11 @@ console.log('   • Catálogo (MongoDB Atlas):       ', PROPERTIES_SVC);
 console.log('   • Legal & Auth (PostgreSQL Render):', CONTRACTS_SVC);
 console.log('   • Pagos & TTL (Amazon DynamoDB):   ', BILLING_SVC);
 
-// Helper para llamadas HTTP fetch con manejo de timeout
+// Helper para llamadas HTTP fetch con manejo de timeout resiliente a cold-starts
 async function fetchService(url, options = {}) {
+  const timeoutMs = options.timeout || 35000;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), options.timeout || 12000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(timeoutId);
@@ -62,7 +63,11 @@ async function fetchService(url, options = {}) {
     return { ok: res.ok, status: res.status, data };
   } catch (err) {
     clearTimeout(timeoutId);
-    return { ok: false, status: 503, error: err.message, data: { success: false, message: 'Microservicio no disponible: ' + err.message } };
+    const isTimeout = err.name === 'AbortError';
+    const msg = isTimeout 
+      ? 'El microservicio está iniciando en la nube (Cold Start de Render/Railway). Por favor espere unos segundos e intente nuevamente.'
+      : 'Microservicio no disponible: ' + err.message;
+    return { ok: false, status: 503, error: err.message, data: { success: false, message: msg } };
   }
 }
 
