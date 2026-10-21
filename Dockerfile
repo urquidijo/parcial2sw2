@@ -10,7 +10,7 @@ COPY server.js ./
 COPY mfe-shell ./mfe-shell
 COPY mfe-properties-react ./mfe-properties-react
 COPY mfe-contracts-angular ./mfe-contracts-angular
-COPY mfe-bi-vue ./mfe-bi-vue
+COPY mfe-bi-next ./mfe-bi-next
 
 ENV NODE_ENV=production
 ENV PORT=5000

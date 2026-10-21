@@ -770,15 +770,14 @@
       : ((window.location.protocol === 'file:') ? 'http://localhost:5000/api' : `${window.location.origin}/api`);
   </script>
 
-  <!-- Runtimes para Microfrontends Políglotas (React 18 & Vue 3) -->
+  <!-- Runtimes para Microfrontends Políglotas (React 18 & Angular 17 & Next.js 14) -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 
-  <!-- Carga Dinámica de Microfrontends Independientes (React, Angular, Vue) -->
+  <!-- Carga Dinámica de Microfrontends Desacoplados (React 18, Angular 17, Next.js 14) -->
   <script src="/mfe/properties/src/PropertyExplorer.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/properties/src/PropertyExplorer.js'"></script>
   <script src="/mfe/contracts/src/app/contracts.component.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/contracts/src/app/contracts.component.js'"></script>
-  <script src="/mfe/bi/src/BIDashboard.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/bi/src/BIDashboard.js'"></script>
+  <script src="/mfe/bi/public/mfe-bi.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/bi/public/mfe-bi.js'"></script>
 </head>
 <body>
 
@@ -996,7 +995,7 @@
         <mfe-contracts id="mfeContractsComponent" api-url="/api"></mfe-contracts>
       </section>
 
-      <!-- SECCIÓN 5: CRM FINANCIERO Y COMISIONES (VUE 3 MFE) -->
+      <!-- SECCIÓN 5: CRM FINANCIERO Y COMISIONES (NEXT.JS 14 / REACT 18 MFE) -->
       <section id="viewFinanzas" class="hidden">
         <mfe-bi id="mfeBiComponent" api-url="/api"></mfe-bi>
       </section>

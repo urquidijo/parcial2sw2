@@ -19,10 +19,10 @@ app.use(express.json());
 // Servir frontend unificado (mfe-shell)
 app.use(express.static(path.join(__dirname, 'mfe-shell')));
 
-// Servir Microfrontends desacoplados (React, Angular, Vue)
+// Servir Microfrontends desacoplados (React, Angular, Next.js)
 app.use('/mfe/properties', express.static(path.join(__dirname, 'mfe-properties-react')));
 app.use('/mfe/contracts', express.static(path.join(__dirname, 'mfe-contracts-angular')));
-app.use('/mfe/bi', express.static(path.join(__dirname, 'mfe-bi-vue')));
+app.use('/mfe/bi', express.static(path.join(__dirname, 'mfe-bi-next')));
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'mfe-shell', 'index.html'));

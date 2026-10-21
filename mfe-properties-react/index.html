@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MFE Properties Explorer | React 18</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-page: #f8fafc;
+      --bg-card: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --brand: #0284c7;
+      --emerald: #059669;
+      --amber: #d97706;
+      --border: #e2e8f0;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      padding: 2rem;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+  </style>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="/src/PropertyExplorer.js"></script>
+</head>
+<body>
+  <div style="max-width: 1280px; margin: 0 auto;">
+    <div class="header-bar">
+      <div>
+        <h1 style="font-size: 1.5rem; font-weight: 800;">🏢 Microfrontend de Catálogo Inmobiliario (React 18)</h1>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Desplegado como Micro-App Independiente en Vercel comunicándose con el API Gateway.</p>
+      </div>
+    </div>
+    
+    <!-- Montaje del Microfrontend React -->
+    <mfe-properties id="mfePropertiesComponent"></mfe-properties>
+  </div>
+</body>
+</html>

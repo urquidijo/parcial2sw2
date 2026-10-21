@@ -1,0 +1,15 @@
+{
+  "name": "mfe-bi-next",
+  "version": "1.0.0",
+  "description": "Microfrontend de Inteligencia de Negocios y Finanzas - Next.js & React 18 (Amazon DynamoDB)",
+  "scripts": {
+    "dev": "next dev -p 3003",
+    "build": "next build",
+    "start": "next start -p 3003"
+  },
+  "dependencies": {
+    "next": "14.2.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
