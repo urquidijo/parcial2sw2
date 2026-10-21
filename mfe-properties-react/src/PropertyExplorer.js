@@ -103,8 +103,12 @@
   }
 
   function resolveApiUrl(attrUrl) {
-    if (attrUrl) return attrUrl.replace(/\/$/, '');
-    if (typeof window !== 'undefined' && window.API_URL) return window.API_URL.replace(/\/$/, '');
+    if (attrUrl && (attrUrl.startsWith('http://') || attrUrl.startsWith('https://'))) {
+      return attrUrl.replace(/\/$/, '');
+    }
+    if (typeof window !== 'undefined' && window.API_URL) {
+      return window.API_URL.replace(/\/$/, '');
+    }
     if (typeof window !== 'undefined') {
       if (window.location.origin.includes('vercel.app')) {
         return 'https://api-gateway-production-c3ed.up.railway.app/api';

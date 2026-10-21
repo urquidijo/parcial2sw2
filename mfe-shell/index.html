@@ -774,10 +774,10 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <!-- Carga Dinámica de Microfrontends Desacoplados (React 18, Angular 17, Next.js 14) -->
-  <script src="/mfe/properties/src/PropertyExplorer.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/properties/src/PropertyExplorer.js'"></script>
-  <script src="/mfe/contracts/src/app/contracts.component.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/contracts/src/app/contracts.component.js'"></script>
-  <script src="/mfe/bi/public/mfe-bi.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/bi/public/mfe-bi.js'"></script>
+  <!-- Carga Dinámica de Microfrontends Desacoplados en Vercel (con fallback resiliente) -->
+  <script src="https://parcial2sw2-mfe-properties-react.vercel.app/src/PropertyExplorer.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/properties/src/PropertyExplorer.js'"></script>
+  <script src="https://parcial2sw2-mfe-contracts-angular.vercel.app/src/app/contracts.component.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/contracts/src/app/contracts.component.js'"></script>
+  <script src="https://parcial2sw2.vercel.app/mfe-bi.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/bi/public/mfe-bi.js'"></script>
 </head>
 <body>
 
@@ -2147,6 +2147,10 @@ ${signedBy ? signedBy.split(', ').map(s => `- ${s} (Firma Digital Verificada)`).
       }
 
       document.getElementById('modalContrato').classList.add('open');
+    }
+
+    function verMinutaContrato(contractId) {
+      verContratoModal(contractId, `Inmueble #${contractId}`, 0, '');
     }
 
     async function firmarContratoSeleccionado() {
