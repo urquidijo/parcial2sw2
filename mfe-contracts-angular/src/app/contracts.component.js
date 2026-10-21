@@ -5,6 +5,20 @@
  */
 
 (function () {
+  function resolveApiUrl(attrUrl) {
+    if (attrUrl) return attrUrl.replace(/\/$/, '');
+    if (typeof window !== 'undefined' && window.API_URL) return window.API_URL.replace(/\/$/, '');
+    if (typeof window !== 'undefined') {
+      if (window.location.origin.includes('vercel.app')) {
+        return 'https://api-gateway-production-c3ed.up.railway.app/api';
+      }
+      if (window.location.protocol !== 'file:') {
+        return `${window.location.origin}/api`;
+      }
+    }
+    return 'http://localhost:5000/api';
+  }
+
   class MfeContractsElement extends HTMLElement {
     constructor() {
       super();
@@ -13,7 +27,7 @@
     }
 
     connectedCallback() {
-      this.apiUrl = this.getAttribute('api-url') || (window.API_URL || 'http://localhost:5000/api');
+      this.apiUrl = resolveApiUrl(this.getAttribute('api-url'));
       this.render();
       this.loadContracts();
 

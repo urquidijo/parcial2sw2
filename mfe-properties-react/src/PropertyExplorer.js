@@ -102,6 +102,20 @@
     );
   }
 
+  function resolveApiUrl(attrUrl) {
+    if (attrUrl) return attrUrl.replace(/\/$/, '');
+    if (typeof window !== 'undefined' && window.API_URL) return window.API_URL.replace(/\/$/, '');
+    if (typeof window !== 'undefined') {
+      if (window.location.origin.includes('vercel.app')) {
+        return 'https://api-gateway-production-c3ed.up.railway.app/api';
+      }
+      if (window.location.protocol !== 'file:') {
+        return `${window.location.origin}/api`;
+      }
+    }
+    return 'http://localhost:5000/api';
+  }
+
   function PropertyExplorerApp({ apiUrl }) {
     const [properties, setProperties] = React.useState([]);
     const [searchTerm, setSearchTerm] = React.useState('');
@@ -110,9 +124,11 @@
     const [cityFilter, setCityFilter] = React.useState('ALL');
     const [loading, setLoading] = React.useState(true);
 
+    const baseApi = resolveApiUrl(apiUrl);
+
     const fetchProperties = React.useCallback(() => {
       setLoading(true);
-      const url = `${apiUrl || window.API_URL || 'http://localhost:5000/api'}/properties`;
+      const url = `${baseApi}/properties`;
       fetch(url)
         .then(res => res.json())
         .then(result => {
@@ -127,7 +143,7 @@
           console.error('[mfe-properties-react] Error cargando catálogo:', err);
           setLoading(false);
         });
-    }, [apiUrl]);
+    }, [baseApi]);
 
     React.useEffect(() => {
       fetchProperties();
@@ -234,7 +250,7 @@
   // Definición del Web Component <mfe-properties>
   class MfePropertiesElement extends HTMLElement {
     connectedCallback() {
-      const apiUrl = this.getAttribute('api-url') || (window.API_URL || 'http://localhost:5000/api');
+      const apiUrl = resolveApiUrl(this.getAttribute('api-url'));
       this.root = ReactDOM.createRoot(this);
       this.root.render(e(PropertyExplorerApp, { apiUrl }));
     }

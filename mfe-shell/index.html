@@ -763,6 +763,13 @@
     }
   </style>
 
+  <!-- Configuración Global Inmediata de API Gateway para Microfrontends -->
+  <script>
+    window.API_URL = window.location.origin.includes('vercel.app')
+      ? 'https://api-gateway-production-c3ed.up.railway.app/api'
+      : ((window.location.protocol === 'file:') ? 'http://localhost:5000/api' : `${window.location.origin}/api`);
+  </script>
+
   <!-- Runtimes para Microfrontends Políglotas (React 18 & Vue 3) -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -920,7 +927,7 @@
 
         <!-- Microfrontend Catálogo y Marketplace Inmobiliario (React 18) -->
         <div style="margin-top:1.5rem;">
-          <mfe-properties id="mfePropertiesComponent"></mfe-properties>
+          <mfe-properties id="mfePropertiesComponent" api-url="/api"></mfe-properties>
         </div>
       </section>
 
@@ -986,12 +993,12 @@
 
       <!-- SECCIÓN 4: CONTRATOS Y MINUTAS LEGALES (ANGULAR 17 MFE) -->
       <section id="viewContratos" class="hidden">
-        <mfe-contracts id="mfeContractsComponent"></mfe-contracts>
+        <mfe-contracts id="mfeContractsComponent" api-url="/api"></mfe-contracts>
       </section>
 
       <!-- SECCIÓN 5: CRM FINANCIERO Y COMISIONES (VUE 3 MFE) -->
       <section id="viewFinanzas" class="hidden">
-        <mfe-bi id="mfeBiComponent"></mfe-bi>
+        <mfe-bi id="mfeBiComponent" api-url="/api"></mfe-bi>
       </section>
 
       <!-- SECCIÓN 6: GESTIÓN DE USUARIOS Y ROLES (ADMIN GLOBAL) -->
