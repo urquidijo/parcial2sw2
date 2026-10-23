@@ -388,7 +388,7 @@
     .property-card:hover .property-img img {
       transform: scale(1.04);
     }
-    .badge-status {
+    .property-img .badge-status {
       position: absolute;
       top: 12px;
       left: 12px;
@@ -1369,8 +1369,16 @@
     });
 
     window.addEventListener('habitat:contract:download', (e) => {
-      if (e.detail && e.detail.contractId) {
-        verMinutaContrato(e.detail.contractId);
+      if (e.detail) {
+        const c = e.detail.contract;
+        if (c) {
+          const propTitle = c.propertyTitle || ('Inmueble #' + (c.propertyId || c.id));
+          const totalAmount = c.totalAmount || c.total_amount || 0;
+          const signedBy = c.signedBy || c.signed_by || '';
+          verContratoModal(c.contractNumber || c.protocolNumber || c.id, propTitle, totalAmount, signedBy);
+        } else if (e.detail.contractId) {
+          verMinutaContrato(e.detail.contractId);
+        }
       }
     });
 
@@ -1526,6 +1534,8 @@
       }
 
       navigate('catalogo');
+      window.dispatchEvent(new CustomEvent('habitat:refresh:contracts'));
+      window.dispatchEvent(new CustomEvent('habitat:refresh:properties'));
     }
 
     function configurarNavegacionPorRol() {
@@ -1585,7 +1595,7 @@
       } else if (viewName === 'contratos') {
         document.getElementById('viewContratos').classList.remove('hidden');
         document.getElementById('tabContratos')?.classList.add('active');
-        cargarContratosDesdeBD();
+        window.dispatchEvent(new CustomEvent('habitat:refresh:contracts'));
       } else if (viewName === 'finanzas') {
         document.getElementById('viewFinanzas').classList.remove('hidden');
         document.getElementById('tabFinanzas')?.classList.add('active');

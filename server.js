@@ -53,7 +53,7 @@ console.log('   • Pagos & TTL (Amazon DynamoDB):   ', BILLING_SVC);
 
 // Helper para llamadas HTTP fetch con manejo de timeout resiliente a cold-starts
 async function fetchService(url, options = {}) {
-  const timeoutMs = options.timeout || 35000;
+  const timeoutMs = options.timeout || 60000;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
