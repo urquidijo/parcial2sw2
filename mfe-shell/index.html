@@ -774,10 +774,29 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <!-- Carga Dinámica de Microfrontends Desacoplados en Vercel (con fallback resiliente) -->
-  <script src="https://parcial2sw2-mfe-properties-react.vercel.app/src/PropertyExplorer.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/properties/src/PropertyExplorer.js'"></script>
-  <script src="https://parcial2sw2-mfe-contracts-angular.vercel.app/src/app/contracts.component.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/contracts/src/app/contracts.component.js'"></script>
-  <script src="https://parcial2sw2.vercel.app/mfe-bi.js" onerror="this.onerror=null; this.src='https://api-gateway-production-c3ed.up.railway.app/mfe/bi/public/mfe-bi.js'"></script>
+  <!-- Carga Inteligente de Microfrontends (Localhost: Archivos Locales en Vivo | Nube: CDN Vercel) -->
+  <script>
+    (function() {
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const ts = isLocal ? ('?v=' + Date.now()) : '';
+
+      const propsSrc = isLocal 
+        ? ('/mfe/properties/src/PropertyExplorer.js' + ts)
+        : 'https://parcial2sw2-mfe-properties-react.vercel.app/src/PropertyExplorer.js';
+
+      const contractsSrc = isLocal 
+        ? ('/mfe/contracts/src/app/contracts.component.js' + ts)
+        : 'https://parcial2sw2-mfe-contracts-angular.vercel.app/src/app/contracts.component.js';
+
+      const biSrc = isLocal 
+        ? ('/mfe/bi/public/mfe-bi.js' + ts)
+        : 'https://parcial2sw2.vercel.app/mfe-bi.js';
+
+      document.write('<script src="' + propsSrc + '"><\/script>');
+      document.write('<script src="' + contractsSrc + '"><\/script>');
+      document.write('<script src="' + biSrc + '"><\/script>');
+    })();
+  </script>
 </head>
 <body>
 
