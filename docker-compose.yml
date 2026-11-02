@@ -51,12 +51,17 @@ services:
     image: quay.io/keycloak/keycloak:24.0.2
     container_name: proptech-keycloak
     restart: always
-    command: start-dev
+    command: start-dev --import-realm
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin_keycloak_password
+      # Secreto de la cuenta de servicio habitat-admin-api (debe coincidir con ms-contracts-spring/.env)
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-habitat-admin-dev-secret}
     ports:
       - "8080:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./keycloak:/opt/keycloak/data/import:ro
     networks:
       - proptech-network
 
@@ -74,6 +79,9 @@ services:
       - NODE_ENV=production
       - WEBHOOK_URL=http://localhost:5678/
       - GENERIC_TIMEZONE=America/La_Paz
+      # CU14: chat de Telegram que recibe las confirmaciones de reserva (ver n8n/README.md)
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
       - n8n_data:/home/node/.n8n
     networks:
@@ -87,6 +95,8 @@ volumes:
   dynamodb_data:
     driver: local
   n8n_data:
+    driver: local
+  keycloak_data:
     driver: local
 
 networks:

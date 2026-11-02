@@ -23,12 +23,14 @@ La plataforma inmobiliaria (PropTech) centraliza la gestión del ciclo de vida i
    - Proporciona métricas de rotación de cartera, tasa de conversión de visitas, absorción de m² y rentabilidad por agente/zona.
 
 ### 1.3. Actores del Sistema
-- **Agente Inmobiliario (Broker):** Gestiona propiedades, agenda visitas presenciales/virtuales, registra actas de visita en campo y solicita reservas.
-- **Cliente (Comprador / Inquilino / Inversionista):** Explora el catálogo, programa visitas, entrega ofertas y firma digitalmente contratos de reserva.
-- **Propietario / Desarrollador Inmobiliario:** Consigna inmuebles, revisa el estado de ocupación, aprueba ofertas y recibe liquidaciones de rentas.
-- **Oficial Legal / Notarial:** Redacta, valida cláusulas, gestiona anexos y aprueba contratos de arras y escrituración.
-- **Administrador Financiero:** Gestiona cobros, dispersión de comisiones, facturación electrónica y pagos a propietarios.
-- **Analista de Negocio / Directorio:** Monitorea KPIs de absorción, precios promedio por m² y rentabilidad.
+- **Cliente (Comprador / Inquilino):** Busca inmuebles, envía consultas, agenda visitas, reserva pagando arras y firma contratos. Usa principalmente la app móvil (PWA).
+- **Empleado (actor abstracto):** Generaliza a los sectores de la empresa; los casos de uso comunes (p. ej. iniciar sesión) se asocian a este actor. Tiene un `sector`:
+  - **Agente (`AGENTE`):** Gestiona inmuebles y la agenda de visitas; consulta sus comisiones.
+  - **Oficial Legal (`LEGAL`):** Genera y anula contratos.
+  - **Cajero / Finanzas (`FINANZAS`):** Registra pagos, reembolsos y liquida comisiones.
+  - **Atención al cliente (`ATENCION`):** Responde consultas de clientes.
+- **Administrador General:** Gestiona empleados, consulta el dashboard, solicita reportes de IA por voz y recibe las alertas del agente monitor.
+- **Actores secundarios:** Servicio de IA (Claude, vía MCP), Servicio de voz a texto (Web Speech API), Pasarela de pagos, Telegram (vía n8n).
 
 ### 1.4. Módulos Funcionales
 - **Módulo 1: Catálogo y Ficha Técnica de Inmuebles:** Registro polimórfico de propiedades (terrenos, oficinas, departamentos), fotos en CDN, recorridos 3D y coordenadas GIS.
@@ -48,14 +50,17 @@ Cada microservicio y microfrontend residirá en su **propia carpeta raíz indepe
 parcial2/
 ├── ms-properties-nestjs/           # Microservicio de Catálogo y Multimedia (NestJS + MongoDB)
 ├── ms-contracts-spring/            # Microservicio de Contratos y Legal (Spring Boot + PostgreSQL)
-├── ms-billing-php/                 # Microservicio de Facturación y Comisiones (PHP + DynamoDB/Postgres)
-├── ms-reservations-dynamo/         # Microservicio de Reservas Rápidas y Bloqueos (NestJS/Go + DynamoDB)
-├── mfe-shell/                      # Microfrontend Contenedor (Host / Module Federation)
+├── ms-billing-php/                 # Microservicio de Reservas, Facturación y Comisiones (PHP + DynamoDB)
+├── ms-ml-python/                   # (planificado) Modelos ML: predicción de precio y segmentación (FastAPI)
+├── saga-orchestrator/              # Orquestador del patrón Saga (reserva con arras)
+├── mfe-shell/                      # Microfrontend Contenedor (Host)
 ├── mfe-properties-react/           # Microfrontend Catálogo y Ficha de Propiedades (React)
 ├── mfe-contracts-angular/          # Microfrontend Gestión Contractual y ERP (Angular)
-├── mfe-bi-vue/                     # Microfrontend Dashboards Analíticos (Vue 3)
+├── mfe-bi-next/                    # Microfrontend Dashboards Analíticos (Next.js)
 ├── bff-graphql-gateway/            # API Gateway BFF con GraphQL para el ERP
-├── docker-compose.yml              # Orquestación local de BDs (Postgres, Mongo, DynamoDB-Local, Keycloak)
+├── server.js                       # API Gateway REST + servidor estático de los microfrontends
+├── n8n_proptech_workflow.json      # Flujo de automatización n8n
+├── docker-compose.yml              # Orquestación local de BDs (Postgres, Mongo, DynamoDB-Local, Keycloak, n8n)
 └── ARCHITECTURE.md                 # Esta documentación
 ```
 
@@ -188,7 +193,7 @@ graph TB
     subgraph Canales_Usuarios["Canales de Usuario"]
         AppWebERP["ERP Gestión Empresarial (Angular MFE)"]
         Marketplace["Marketplace Inmobiliario (React MFE)"]
-        DashboardBI["Dashboard Analítica BI (Vue MFE)"]
+        DashboardBI["Dashboard Analítica BI (Next.js MFE)"]
         AppMobile["App Móvil / PWA Offline-First (Agentes)"]
     end
 
@@ -209,7 +214,7 @@ graph TB
         MS_Properties["ms-properties<br/>(NestJS / TypeScript)"]
         MS_Contracts["ms-contracts<br/>(Java / Spring Boot 3)"]
         MS_Billing["ms-billing-commissions<br/>(PHP 8.3 / Laravel)"]
-        MS_BI_Worker["ms-bi-analytics<br/>(Python / FastApi)"]
+        MS_BI_Worker["ms-ml-python<br/>(Python / FastAPI)"]
     end
 
     subgraph Capa_Datos["Capa Políglota de Bases de Datos"]
@@ -272,9 +277,9 @@ Para permitir que múltiples equipos desarrollen de forma autónoma con diferent
 3. **`mfe-properties-react` (React 18 + Vite/Webpack):**
    - Microfrontend del **Catálogo y Ficha de Inmuebles**.
    - *Por qué React:* Ecosistema rico para renderizado de mapas interactivos (Mapbox GL / Leaflet), galerías de imágenes de alta velocidad y filtros en tiempo real mediante componentes funcionales y Virtual DOM.
-4. **`mfe-bi-vue` (Vue 3 + Chart.js / ECharts):**
+4. **`mfe-bi-next` (Next.js):**
    - Microfrontend de **Inteligencia de Negocios y Dashboards**.
-   - *Por qué Vue 3:* Curva de reactividad óptima (`Composition API`) para gráficos en tiempo real, widgets visuales de métricas financieras y dashboards livianos de alta performance.
+   - *Por qué Next.js:* React con renderizado del lado del servidor y rutas por archivos, adecuado para dashboards financieros; se expone también como Web Component (`<mfe-bi>`) para integrarse en el shell.
 
 ### 6.2. Configuración de Module Federation (`webpack.config.js`)
 
@@ -512,11 +517,14 @@ Se implementa **Keycloak** como Identity and Access Management (IAM) central baj
 - **Client Credentials Grant:** Para comunicación M2M entre microservicios internos y workers.
 
 ### 8.2. Mapeo de Roles y Permisos (RBAC)
-- `ROLE_ADMIN`: Acceso total al ERP, configuraciones de comisiones y auditoría forense.
-- `ROLE_AGENTE`: Acceso al catálogo, agendamiento de visitas, creación de reservas y visualización de sus propias comisiones.
-- `ROLE_LEGAL`: Revisión, edición de cláusulas y aprobación notarial de contratos.
-- `ROLE_CLIENTE`: Portal de comprador, consulta de estado de reservas y firma digital.
-- `ROLE_BI_ANALYST`: Acceso de solo lectura a métricas agregadas en la app de BI.
+Se usan tres roles y, para los empleados, un atributo `sector`:
+- `CLIENTE`: Catálogo, consultas, visitas, reservas, firma digital y notificaciones push.
+- `EMPLEADO` + `sector`:
+  - `AGENTE`: Gestión de inmuebles, agenda de visitas y consulta de sus comisiones.
+  - `LEGAL`: Generación y anulación de contratos.
+  - `FINANZAS`: Pagos, reembolsos y liquidación de comisiones.
+  - `ATENCION`: Respuesta a consultas de clientes.
+- `ADMIN`: Gestión de empleados, dashboard, reportes de IA, segmentación de clientes y agente monitor.
 
 ### 8.3. Estructura del Token JWT Emitido
 ```json

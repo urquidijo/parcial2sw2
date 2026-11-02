@@ -1,21 +1,7 @@
 """
-Estado de la propiedad inmobiliaria
+BFF GraphQL del Sistema de Gestión Empresarial (ERP) de Habitat Pro.
+Une en una sola consulta datos de ms-contracts (PostgreSQL) y ms-properties (MongoDB).
 """
-enum PropertyStatus {
-  DISPONIBLE
-  RESERVADO_PENDIENTE
-  RESERVADO_CONFIRMADO
-  VENDIDO
-  ALQUILADO
-}
-
-enum PropertyType {
-  DEPARTAMENTO
-  CASA
-  TERRENO
-  OFICINA
-  LOCAL_COMERCIAL
-}
 
 enum ContractType {
   PROMESA_COMPRAVENTA
@@ -32,24 +18,40 @@ enum ContractStatus {
   RECHAZADO
 }
 
+enum Sector {
+  AGENTE
+  LEGAL
+  FINANZAS
+  ATENCION
+}
+
+enum AppointmentStatus {
+  CONFIRMADA
+  COMPLETADA
+  CANCELADA
+}
+
 type Property {
   id: ID!
   code: String!
   title: String!
-  description: String
-  propertyType: PropertyType!
-  status: PropertyStatus!
-  price: Float!
-  currency: String!
-  areaSquareMeters: Float!
+  propertyType: String
+  status: String
+  price: Float
+  city: String
+  zone: String
+  address: String
+  areaSquareMeters: Float
   rooms: Int
   bathrooms: Int
-  parkingSlots: Int
-  address: String!
-  city: String!
-  zone: String
-  amenities: [String!]
-  photos: [String!]
+  image: String
+}
+
+type Signature {
+  signerName: String!
+  signerRole: String!
+  documentHash: String!
+  signedAt: String!
 }
 
 type Contract {
@@ -58,74 +60,91 @@ type Contract {
   contractType: ContractType!
   status: ContractStatus!
   propertyId: String!
+  propertyTitle: String
+  "Inmueble completo desde ms-properties (resuelto sin N+1)"
   property: Property
   clientId: String!
+  clientName: String
   agentId: String
-  paymentReferenceId: String
   totalAmount: Float!
   downPayment: Float!
   legalClauses: String
   cancellationReason: String
+  signedBy: String
+  signatures: [Signature!]!
+  signaturesRequired: Int!
   createdAt: String
 }
 
-type CommissionSummary {
-  agentId: String!
-  totalEarnedYTD: Float!
-  pendingPayout: Float!
-  completedDealsCount: Int!
-  tier: String!
+type Employee {
+  id: ID!
+  name: String!
+  email: String!
+  sector: Sector
+  active: Boolean!
+  createdAt: String
+}
+
+type Client {
+  id: ID!
+  name: String!
+  email: String!
+}
+
+type Appointment {
+  id: ID!
+  propertyId: String
+  propertyTitle: String
+  property: Property
+  userId: String
+  clientName: String
+  clientPhone: String
+  visitDate: String!
+  visitTime: String!
+  visitType: String
+  notes: String
+  status: AppointmentStatus!
 }
 
 input CreateContractInput {
   propertyId: String!
+  propertyTitle: String
   clientId: String!
-  agentId: String
+  clientName: String
   contractType: ContractType!
   totalAmount: Float!
   downPayment: Float!
   legalClauses: String
 }
 
-input InitiateReservationSagaInput {
-  propertyId: String!
-  clientId: String!
-  depositAmount: Float!
-  totalAmount: Float!
-}
-
-type SagaResult {
-  success: Boolean!
-  message: String!
-  propertyId: String!
-  paymentId: String
-  contractNumber: String
+input CreateEmployeeInput {
+  firstName: String!
+  lastName: String!
+  email: String!
+  sector: Sector!
+  temporaryPassword: String!
 }
 
 type Query {
-  # ERP: Consultar lista de contratos con sus propiedades anidadas
+  "CU11/CU12: contratos (el cliente recibe solo los suyos)"
   contracts(status: ContractStatus): [Contract!]!
-  
-  # ERP: Detalle de contrato específico
   contract(id: ID!): Contract
-  
-  # ERP: Consultar catálogo de propiedades
-  properties(status: PropertyStatus, city: String): [Property!]!
-  
-  # ERP: Detalle de una propiedad
-  property(id: ID!): Property
-  
-  # ERP: Resumen de comisiones por agente
-  agentCommissions(agentId: String!): CommissionSummary
+  "CU08: empleados (solo ADMIN)"
+  employees: [Employee!]!
+  "Clientes para generar contratos (LEGAL / ADMIN / AGENTE)"
+  clients: [Client!]!
+  "CU09/CU10: agenda de visitas"
+  appointments(status: AppointmentStatus): [Appointment!]!
+  "Catálogo de inmuebles"
+  properties(status: String): [Property!]!
 }
 
 type Mutation {
-  # Crear contrato ordinario
   createContract(input: CreateContractInput!): Contract!
-  
-  # Disparar la transacción Saga transversal de reserva de inmueble
-  initiateReservationSaga(input: InitiateReservationSagaInput!): SagaResult!
-  
-  # Cancelar contrato
-  cancelContract(id: ID!, reason: String): Contract!
+  cancelContract(id: ID!, reason: String!): Contract!
+  signContract(id: ID!): Contract!
+  createEmployee(input: CreateEmployeeInput!): Employee!
+  updateEmployeeSector(id: ID!, sector: Sector!): Employee!
+  setEmployeeActive(id: ID!, active: Boolean!): Employee!
+  updateAppointmentStatus(id: ID!, status: AppointmentStatus!): Appointment!
 }

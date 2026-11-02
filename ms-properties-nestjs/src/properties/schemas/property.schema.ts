@@ -106,6 +106,10 @@ export class Property {
   @Prop({ default: 'Carlos Broker' })
   brokerName: string;
 
+  // Email del agente que publicó el inmueble: con él se le asigna la comisión al cerrar la operación (CU16/CU17).
+  @Prop()
+  brokerEmail?: string;
+
   @Prop({ type: Object, default: {} })
   dynamicAttributes: Record<string, any>;
 
@@ -128,5 +132,6 @@ PropertySchema.virtual('id').get(function () {
   return this._id ? this._id.toString() : this.code;
 });
 
+PropertySchema.index({ location: '2dsphere' });
 PropertySchema.index({ price: 1, status: 1 });
 PropertySchema.index({ city: 1, zone: 1 });

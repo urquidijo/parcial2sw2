@@ -3,6 +3,8 @@ package com.proptech.contracts.model;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "contracts")
@@ -61,6 +63,11 @@ public class Contract {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @JoinColumn(name = "contract_id")
+    @OrderBy("signedAt ASC")
+    private List<ContractSignature> signatures = new ArrayList<>();
 
     public Contract() {
         this.createdAt = LocalDateTime.now();
@@ -129,6 +136,12 @@ public class Contract {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public List<ContractSignature> getSignatures() { return signatures; }
+
+    public boolean hasSignatureFrom(String signerRole) {
+        return signatures.stream().anyMatch(sig -> sig.getSignerRole().equals(signerRole));
+    }
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }

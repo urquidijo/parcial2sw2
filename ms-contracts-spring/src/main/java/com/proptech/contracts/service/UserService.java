@@ -2,9 +2,10 @@ package com.proptech.contracts.service;
 
 import com.proptech.contracts.model.User;
 import com.proptech.contracts.repository.UserRepository;
-import jakarta.annotation.PostConstruct;
+import com.proptech.contracts.security.KeycloakClaims;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +15,7 @@ import java.util.*;
 public class UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
+
     private final UserRepository userRepository;
 
     public UserService(UserRepository userRepository) {
@@ -36,79 +38,62 @@ public class UserService {
     }
 
     @Transactional
-    public Map<String, Object> login(String email, String password) {
-        Optional<User> userOpt = findByEmail(email);
-        if (userOpt.isEmpty()) {
-            throw new IllegalArgumentException("Usuario o correo no encontrado en PostgreSQL.");
-        }
-        User user = userOpt.get();
-        if (password == null || !password.equals(user.getPasswordHash())) {
-            throw new IllegalArgumentException("Contraseña incorrecta. Verifique sus credenciales.");
-        }
-        // Generar token JWT simulado en base64
-        String tokenPayload = "{\"id\":\"" + user.getId() + "\",\"email\":\"" + user.getEmail() + "\",\"role\":\"" + user.getRole() + "\"}";
-        String token = "jwt-token-" + Base64.getEncoder().encodeToString(tokenPayload.getBytes());
+    public User currentUser(Jwt jwt) {
+        return userRepository.findByKeycloakId(jwt.getSubject()).orElseGet(() -> syncFromToken(jwt));
+    }
 
-        Map<String, Object> res = new HashMap<>();
-        res.put("success", true);
-        res.put("message", "Inicio de sesión verificado con éxito en PostgreSQL");
-        res.put("user", user);
-        res.put("token", token);
-        return res;
+    @Transactional(readOnly = true)
+    public List<User> getClients() {
+        return userRepository.findByRoleOrderByNameAsc(User.ROLE_CLIENTE);
     }
 
     @Transactional
-    public Map<String, Object> register(String email, String password, String name) {
-        String cleanEmail = email.toLowerCase().trim();
-        if (userRepository.existsByEmail(cleanEmail)) {
-            throw new IllegalStateException("Ya existe una cuenta con este correo electrónico.");
-        }
+    public User syncFromToken(Jwt jwt) {
+        String email = Optional.ofNullable(jwt.getClaimAsString("email"))
+                .map(e -> e.toLowerCase().trim())
+                .filter(e -> !e.isEmpty())
+                .orElseThrow(() -> new IllegalArgumentException("El token de Keycloak no incluye el email del usuario."));
+        String role = KeycloakClaims.primaryRole(jwt);
+        String sector = User.ROLE_EMPLEADO.equals(role) ? jwt.getClaimAsString("sector") : null;
+        String tokenName = Optional.ofNullable(jwt.getClaimAsString("name")).filter(n -> !n.isBlank()).orElse(email);
 
-        String id = "USR-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        String initials = Arrays.stream(name.trim().split(" "))
-                .filter(s -> !s.isEmpty())
-                .map(s -> s.substring(0, 1))
-                .reduce("", (a, b) -> a + b);
-        if (initials.length() > 2) initials = initials.substring(0, 2).toUpperCase();
+        User user = userRepository.findByKeycloakId(jwt.getSubject())
+                .or(() -> userRepository.findByEmail(email))
+                .orElseGet(() -> {
+                    log.info("Nuevo usuario SSO registrado en PostgreSQL: {}", email);
+                    return new User(newUserId(), email, tokenName, role, sector, initialsOf(tokenName));
+                });
 
-        User user = new User(id, cleanEmail, password != null ? password : "pass123", name.trim(), "CLIENTE", initials);
-        User saved = userRepository.save(user);
-
-        String tokenPayload = "{\"id\":\"" + saved.getId() + "\",\"email\":\"" + saved.getEmail() + "\",\"role\":\"" + saved.getRole() + "\"}";
-        String token = "jwt-token-" + Base64.getEncoder().encodeToString(tokenPayload.getBytes());
-
-        Map<String, Object> res = new HashMap<>();
-        res.put("success", true);
-        res.put("message", "Cuenta de Comprador creada exitosamente en PostgreSQL");
-        res.put("user", saved);
-        res.put("token", token);
-        return res;
-    }
-
-    @Transactional
-    public User updateRole(String id, String newRole) {
-        List<String> validRoles = List.of("CLIENTE", "AGENTE", "LEGAL", "ADMIN");
-        if (!validRoles.contains(newRole)) {
-            throw new IllegalArgumentException("Rol inválido. Permitidos: " + validRoles);
-        }
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + id));
-        user.setRole(newRole);
+        user.setKeycloakId(jwt.getSubject());
+        user.setEmail(email);
+        user.setRole(role);
+        user.setSector(sector);
         return userRepository.save(user);
     }
 
-    @PostConstruct
+    @Transactional
     public void seedInitialUsers() {
-        if (userRepository.count() == 0) {
-            log.info("Sembrando usuarios iniciales en PostgreSQL Render...");
-            List<User> defaults = List.of(
-                    new User("CLI-JUAN-COMPRADOR", "juan.comprador@habitat.pro", "pass123", "Juan Comprador", "CLIENTE", "JC"),
-                    new User("AGT-CARLOS-BROKER", "carlos.broker@habitat.pro", "pass123", "Carlos Broker", "AGENTE", "CB"),
-                    new User("NOT-ELENA-RAMOS", "elena.ramos@habitat.pro", "pass123", "Dra. Elena Ramos", "LEGAL", "ER"),
-                    new User("ADM-SISTEMAS", "admin@habitat.pro", "pass123", "Administrador Principal", "ADMIN", "AD")
-            );
-            userRepository.saveAll(defaults);
-            log.info("✅ 4 usuarios base sembrados exitosamente en PostgreSQL Render.");
-        }
+        if (userRepository.count() > 0) return;
+        log.info("Sembrando usuarios iniciales en PostgreSQL...");
+        userRepository.saveAll(List.of(
+                new User("CLI-JUAN-COMPRADOR", "juan.comprador@habitat.pro", "Juan Comprador", User.ROLE_CLIENTE, null, "JC"),
+                new User("AGT-CARLOS-BROKER", "carlos.broker@habitat.pro", "Carlos Broker", User.ROLE_EMPLEADO, "AGENTE", "CB"),
+                new User("NOT-ELENA-RAMOS", "elena.ramos@habitat.pro", "Dra. Elena Ramos", User.ROLE_EMPLEADO, "LEGAL", "ER"),
+                new User("FIN-MARIA-FINANZAS", "maria.finanzas@habitat.pro", "María Finanzas", User.ROLE_EMPLEADO, "FINANZAS", "MF"),
+                new User("ADM-SISTEMAS", "admin@habitat.pro", "Administrador Principal", User.ROLE_ADMIN, null, "AD")
+        ));
+    }
+
+    static String newUserId() {
+        return "USR-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    static String initialsOf(String name) {
+        String initials = Arrays.stream(name.trim().split("\\s+"))
+                .filter(s -> !s.isEmpty())
+                .map(s -> s.substring(0, 1))
+                .reduce("", String::concat)
+                .toUpperCase();
+        return initials.length() > 2 ? initials.substring(0, 2) : initials;
     }
 }

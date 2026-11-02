@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # Script de Apagado y Limpieza Completa de Habitat Pro
 # (Cierra Microservicios, API Gateway, Procesos Huérfanos y Contenedores)
 # ==============================================================================
@@ -30,6 +30,8 @@ Kill-Port 5000 "API Gateway & Frontend"
 Kill-Port 3001 "ms-properties-nestjs"
 Kill-Port 8081 "ms-contracts-spring"
 Kill-Port 8002 "ms-billing-php"
+Kill-Port 3003 "mfe-bi-next"
+Kill-Port 4000 "bff-graphql"
 
 # 2. Detener contenedor de n8n si el usuario lo desea
 Write-Host "`n[2/3] Verificando contenedores Docker..." -ForegroundColor Cyan

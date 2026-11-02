@@ -1,9 +1,21 @@
-# Microfrontend de Contratos y ERP Legal (Angular)
+# mfe-contracts-angular — ERP (Angular 18 + Angular Elements + GraphQL)
 
-- **Tecnología:** Angular 17+ + Webpack Module Federation (@angular-architects/module-federation) + Apollo Client GraphQL
-- **Puerto por defecto:** 3002
-- **Responsabilidad:**
-  - Sistema de gestión empresarial (ERP) para redacción de contratos y anexos.
-  - Consumo directo del backend a través de **GraphQL** para consultas complejas.
-  - Gestión de flujos de aprobación legal y seguimiento de firmas digitales.
-  - Expone el módulo federado `./ContractsModule`.
+Microfrontend del Sistema de Gestión Empresarial. Se publica como Web Component `<mfe-contracts>` y el shell coloca una instancia por sección:
+
+| Atributo `view` | Caso de uso | Quién lo usa |
+|---|---|---|
+| `contratos` | CU11 generar / anular contrato · CU12 firmar | Cliente (sus contratos), Oficial Legal, Admin |
+| `empleados` | CU08 alta, baja y sector de empleados | Administrador General |
+| `agenda` | CU09 mis visitas · CU10 agenda del agente | Cliente, Agente, Admin |
+
+- Todas las vistas consultan el **BFF GraphQL** (`/api/graphql` → `bff-graphql-gateway`) con el token de Keycloak del shell.
+- Sin zone.js (modo zoneless con signals) para no interferir con el shell ni con el microfrontend React.
+
+## Compilar
+
+```bash
+npm install
+npm run build        # genera dist/browser/main.js (módulo ES)
+```
+
+El shell carga `/mfe/contracts/dist/browser/main.js` en local. `start-all.ps1` lo compila si falta `dist/`.

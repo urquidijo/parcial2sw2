@@ -22,6 +22,8 @@ out/
 */out/
 .angular/
 */.angular/
+.next/
+*/.next/
 .vite/
 */.vite/
 *.tsbuildinfo
@@ -108,3 +110,5 @@ temp/
 scratch/
 *.tmp
 *.bak
+
+Plan_Trabajo_HabitatPro.docx

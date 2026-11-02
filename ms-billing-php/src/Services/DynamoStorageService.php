@@ -2,7 +2,20 @@
 
 namespace PropTech\Billing\Services;
 
+require_once __DIR__ . '/DynamoException.php';
+
+/**
+ * Acceso a Amazon DynamoDB (us-east-1) firmando cada petición con AWS SigV4.
+ * Tablas:
+ *  - HabitatCharges       (paymentId)               libro de cobros: arras, saldos de compra y cuotas de alquiler
+ *  - HabitatReservations  (reservationId)           reservas; el TTL las borra a las 48 h si siguen ACTIVA
+ *  - HabitatCommissions   (agentId, commissionId)   comisiones de los agentes
+ */
 class DynamoStorageService {
+    public const KIND_ARRAS = 'ARRAS';
+    public const KIND_SALDO = 'SALDO_COMPRA';
+    public const KIND_CUOTA = 'CUOTA_ALQUILER';
+
     private string $accessKey;
     private string $secretKey;
     private string $region;
@@ -89,243 +102,460 @@ class DynamoStorageService {
         return json_decode($response, true) ?? [];
     }
 
-    /**
-     * SAGA PASO 2: Guarda un cobro / depósito en 'HabitatCharges' con TTL nativo de 48h
-     */
-    public function saveCharge(array $charge): array {
-        $ttl = time() + (48 * 3600);
-        $payload = [
-            'TableName' => 'HabitatCharges',
-            'Item' => [
-                'paymentId' => ['S' => $charge['paymentId']],
-                'propertyId' => ['S' => (string)$charge['propertyId']],
-                'clientId' => ['S' => (string)$charge['clientId']],
-                'amount' => ['N' => (string)$charge['amount']],
-                'currency' => ['S' => $charge['currency'] ?? 'USD'],
-                'status' => ['S' => $charge['status']],
-                'idempotencyKey' => ['S' => $charge['idempotencyKey'] ?? ''],
-                'createdAt' => ['S' => date('c')],
-                'ttl' => ['N' => (string)$ttl]
-            ]
-        ];
+    // Igual que sendDynamoRequest, pero un error de DynamoDB lanza DynamoException en vez de perderse en silencio.
+    private function call(string $target, array $payload): array {
+        $res = $this->sendDynamoRequest($target, $payload);
+        if (($res['error'] ?? false) === true) {
+            throw new DynamoException((int) $res['code'], (string) $res['raw']);
+        }
+        return $res;
+    }
 
-        $this->sendDynamoRequest('PutItem', $payload);
-        return $charge;
+    // Scan completo de una tabla (sigue LastEvaluatedKey si la respuesta viene paginada).
+    private function scanAll(string $table): array {
+        $items = [];
+        $payload = ['TableName' => $table];
+        do {
+            $res = $this->call('Scan', $payload);
+            array_push($items, ...($res['Items'] ?? []));
+            if (isset($res['LastEvaluatedKey'])) {
+                $payload['ExclusiveStartKey'] = $res['LastEvaluatedKey'];
+            }
+        } while (isset($res['LastEvaluatedKey']));
+        return $items;
+    }
+
+    private static function s(array $item, string $key, string $default = ''): string {
+        return $item[$key]['S'] ?? $default;
+    }
+
+    private static function n(array $item, string $key): float {
+        return (float) ($item[$key]['N'] ?? 0);
+    }
+
+    private static function str(mixed $value): array {
+        return ['S' => (string) $value];
+    }
+
+    private static function num(float|int $value): array {
+        return ['N' => (string) round((float) $value, 2)];
+    }
+
+    // ------------------------------------------------------------------
+    // Cobros (HabitatCharges)
+    // ------------------------------------------------------------------
+
+    /**
+     * SAGA PASO 2: guarda el cobro de arras. Con condición: un mismo paymentId (misma Idempotency-Key) no se cobra dos veces.
+     * Devuelve false si ya existía.
+     */
+    public function saveCharge(array $charge): bool {
+        try {
+            $this->call('PutItem', [
+                'TableName' => 'HabitatCharges',
+                'Item' => [
+                    'paymentId' => self::str($charge['paymentId']),
+                    'kind' => self::str(self::KIND_ARRAS),
+                    'propertyId' => self::str($charge['propertyId']),
+                    'clientId' => self::str($charge['clientId']),
+                    'amount' => self::num($charge['amount']),
+                    'currency' => self::str($charge['currency'] ?? 'USD'),
+                    'status' => self::str($charge['status']),
+                    'idempotencyKey' => self::str($charge['idempotencyKey'] ?? ''),
+                    'createdAt' => self::str(date('c')),
+                ],
+                'ConditionExpression' => 'attribute_not_exists(paymentId)',
+            ]);
+            return true;
+        } catch (DynamoException $e) {
+            if ($e->isConditionalFailure()) return false;
+            throw $e;
+        }
+    }
+
+    public function getCharge(string $paymentId): ?array {
+        $res = $this->call('GetItem', ['TableName' => 'HabitatCharges', 'Key' => ['paymentId' => self::str($paymentId)]]);
+        return isset($res['Item']) ? $this->mapCharge($res['Item']) : null;
     }
 
     /**
-     * SAGA COMPENSACIÓN: Actualiza o registra reembolso en 'HabitatCharges'
+     * SAGA COMPENSACIÓN / CU15: marca el cobro como REFUNDED. Solo si existe y está PAID.
+     * Devuelve el cobro y si ya estaba reembolsado (idempotente).
      */
     public function refundCharge(string $paymentId, string $reason): array {
-        $charge = [
-            'paymentId' => $paymentId,
-            'status' => 'REFUNDED',
-            'refundReason' => $reason,
-            'refundedAt' => date('c')
-        ];
-
-        $payload = [
-            'TableName' => 'HabitatCharges',
-            'Key' => ['paymentId' => ['S' => $paymentId]],
-            'UpdateExpression' => 'SET #st = :status, refundReason = :reason, refundedAt = :refundedAt',
-            'ExpressionAttributeNames' => ['#st' => 'status'],
-            'ExpressionAttributeValues' => [
-                ':status' => ['S' => 'REFUNDED'],
-                ':reason' => ['S' => $reason],
-                ':refundedAt' => ['S' => date('c')]
-            ]
-        ];
-
-        $this->sendDynamoRequest('UpdateItem', $payload);
-        return $charge;
+        try {
+            $res = $this->call('UpdateItem', [
+                'TableName' => 'HabitatCharges',
+                'Key' => ['paymentId' => self::str($paymentId)],
+                'UpdateExpression' => 'SET #st = :refunded, refundReason = :reason, refundedAt = :now',
+                'ConditionExpression' => 'attribute_exists(paymentId) AND #st = :paid',
+                'ExpressionAttributeNames' => ['#st' => 'status'],
+                'ExpressionAttributeValues' => [
+                    ':refunded' => self::str('REFUNDED'),
+                    ':paid' => self::str('PAID'),
+                    ':reason' => self::str(mb_substr($reason, 0, 300)),
+                    ':now' => self::str(date('c')),
+                ],
+                'ReturnValues' => 'ALL_NEW',
+            ]);
+            return ['charge' => $this->mapCharge($res['Attributes'] ?? []), 'alreadyRefunded' => false];
+        } catch (DynamoException $e) {
+            if (!$e->isConditionalFailure()) throw $e;
+            $current = $this->getCharge($paymentId);
+            if ($current === null) return ['charge' => null, 'alreadyRefunded' => false];
+            return ['charge' => $current, 'alreadyRefunded' => $current['status'] === 'REFUNDED'];
+        }
     }
 
     /**
-     * Guarda una reserva en 'HabitatReservations' con TTL
+     * CU16: pago de saldo de compra o cuota de alquiler. El paymentId es determinista
+     * (BAL-<contrato> / RENT-<contrato>-<AAAAMM>), así la condición impide registrar dos veces el mismo pago.
+     * Devuelve false si ya estaba registrado.
+     */
+    public function savePayment(array $p): bool {
+        $item = [
+            'paymentId' => self::str($p['paymentId']),
+            'kind' => self::str($p['kind']),
+            'contractId' => self::str($p['contractId']),
+            'contractNumber' => self::str($p['contractNumber']),
+            'propertyId' => self::str($p['propertyId']),
+            'propertyTitle' => self::str($p['propertyTitle'] ?? ''),
+            'clientId' => self::str($p['clientId']),
+            'clientName' => self::str($p['clientName'] ?? ''),
+            'amount' => self::num($p['amount']),
+            'currency' => self::str($p['currency'] ?? 'USD'),
+            'method' => self::str($p['method']),
+            'reference' => self::str($p['reference'] ?? ''),
+            'status' => self::str('PAID'),
+            'registeredBy' => self::str($p['registeredBy'] ?? ''),
+            'createdAt' => self::str(date('c')),
+        ];
+        if (!empty($p['period'])) {
+            $item['period'] = self::str($p['period']);
+        }
+        try {
+            $this->call('PutItem', [
+                'TableName' => 'HabitatCharges',
+                'Item' => $item,
+                'ConditionExpression' => 'attribute_not_exists(paymentId)',
+            ]);
+            return true;
+        } catch (DynamoException $e) {
+            if ($e->isConditionalFailure()) return false;
+            throw $e;
+        }
+    }
+
+    /** Todos los cobros, del más reciente al más antiguo. */
+    public function listCharges(): array {
+        $list = array_map(fn ($it) => $this->mapCharge($it), $this->scanAll('HabitatCharges'));
+        usort($list, fn ($a, $b) => strcmp($b['createdAt'], $a['createdAt']));
+        return $list;
+    }
+
+    private function mapCharge(array $it): array {
+        $kind = self::s($it, 'kind', self::KIND_ARRAS);
+        return [
+            'paymentId' => self::s($it, 'paymentId'),
+            'kind' => $kind,
+            'contractId' => self::s($it, 'contractId') ?: null,
+            'contractNumber' => self::s($it, 'contractNumber') ?: null,
+            'propertyId' => self::s($it, 'propertyId'),
+            'propertyTitle' => self::s($it, 'propertyTitle') ?: null,
+            'clientId' => self::s($it, 'clientId'),
+            'clientName' => self::s($it, 'clientName') ?: null,
+            'amount' => self::n($it, 'amount'),
+            'currency' => self::s($it, 'currency', 'USD'),
+            'method' => self::s($it, 'method') ?: ($kind === self::KIND_ARRAS ? 'PASARELA' : ''),
+            'reference' => self::s($it, 'reference') ?: null,
+            'period' => self::s($it, 'period') ?: null,
+            'status' => self::s($it, 'status', 'PAID'),
+            'registeredBy' => self::s($it, 'registeredBy') ?: null,
+            'refundReason' => self::s($it, 'refundReason') ?: null,
+            'createdAt' => self::s($it, 'createdAt'),
+        ];
+    }
+
+    // ------------------------------------------------------------------
+    // Reservas (HabitatReservations)
+    // ------------------------------------------------------------------
+
+    /**
+     * Guarda una reserva en 'HabitatReservations' con TTL de 48 h
      */
     public function saveReservation(array $res): array {
         $ttl = time() + (48 * 3600);
-        $payload = [
+        $this->call('PutItem', [
             'TableName' => 'HabitatReservations',
             'Item' => [
-                'reservationId' => ['S' => $res['reservationId']],
-                'propertyId' => ['S' => (string)$res['propertyId']],
-                'userId' => ['S' => (string)$res['userId']],
-                'userName' => ['S' => (string)$res['userName']],
-                'userPhone' => ['S' => (string)($res['userPhone'] ?? '')],
-                'depositAmount' => ['N' => (string)$res['depositAmount']],
-                'paymentId' => ['S' => (string)$res['paymentId']],
-                'contractNumber' => ['S' => (string)$res['contractNumber']],
-                'status' => ['S' => $res['status'] ?? 'ACTIVA'],
-                'createdAt' => ['S' => date('c')],
-                'expiresAt' => ['S' => date('c', $ttl)],
-                'ttl' => ['N' => (string)$ttl]
-            ]
-        ];
-
-        $this->sendDynamoRequest('PutItem', $payload);
+                'reservationId' => self::str($res['reservationId']),
+                'propertyId' => self::str($res['propertyId']),
+                'propertyTitle' => self::str($res['propertyTitle'] ?? ''),
+                'userId' => self::str($res['userId']),
+                'userName' => self::str($res['userName']),
+                'userPhone' => self::str($res['userPhone'] ?? ''),
+                'depositAmount' => self::num($res['depositAmount']),
+                'paymentId' => self::str($res['paymentId']),
+                'contractNumber' => self::str($res['contractNumber']),
+                'status' => self::str($res['status'] ?? 'ACTIVA'),
+                'createdAt' => self::str(date('c')),
+                'expiresAt' => self::str(date('c', $ttl)),
+                'ttl' => ['N' => (string) $ttl],
+            ],
+        ]);
         return $res;
+    }
+
+    public function getReservation(string $reservationId): ?array {
+        $res = $this->call('GetItem', ['TableName' => 'HabitatReservations', 'Key' => ['reservationId' => self::str($reservationId)]]);
+        return isset($res['Item']) ? $this->mapReservation($res['Item']) : null;
     }
 
     /**
      * Obtiene todas las reservas de DynamoDB
      */
     public function getAllReservations(?string $userId = null): array {
-        $payload = ['TableName' => 'HabitatReservations'];
-        $res = $this->sendDynamoRequest('Scan', $payload);
-        $items = $res['Items'] ?? [];
-
         $list = [];
-        foreach ($items as $item) {
-            $r = [
-                'id' => $item['reservationId']['S'] ?? '',
-                'reservationId' => $item['reservationId']['S'] ?? '',
-                'property_id' => $item['propertyId']['S'] ?? '',
-                'propertyId' => $item['propertyId']['S'] ?? '',
-                'user_id' => $item['userId']['S'] ?? '',
-                'userId' => $item['userId']['S'] ?? '',
-                'user_name' => $item['userName']['S'] ?? '',
-                'userName' => $item['userName']['S'] ?? '',
-                'user_phone' => $item['userPhone']['S'] ?? '',
-                'deposit_amount' => (float)($item['depositAmount']['N'] ?? 0),
-                'depositAmount' => (float)($item['depositAmount']['N'] ?? 0),
-                'payment_id' => $item['paymentId']['S'] ?? '',
-                'contract_number' => $item['contractNumber']['S'] ?? '',
-                'status' => $item['status']['S'] ?? 'ACTIVA',
-                'created_at' => $item['createdAt']['S'] ?? date('c'),
-                'expires_at' => $item['expiresAt']['S'] ?? date('c', time() + 172800)
-            ];
-
-            if ($userId && $r['user_id'] !== $userId) {
-                continue;
-            }
+        foreach ($this->scanAll('HabitatReservations') as $item) {
+            $r = $this->mapReservation($item);
+            if ($userId && $r['userId'] !== $userId) continue;
             $list[] = $r;
         }
-
+        usort($list, fn ($a, $b) => strcmp($b['created_at'], $a['created_at']));
         return $list;
     }
 
-    /**
-     * Actualiza estado de reserva en DynamoDB
-     */
-    public function updateReservationStatus(string $reservationId, string $newStatus): void {
-        $payload = [
-            'TableName' => 'HabitatReservations',
-            'Key' => ['reservationId' => ['S' => $reservationId]],
-            'UpdateExpression' => 'SET #st = :status, updatedAt = :updatedAt',
-            'ExpressionAttributeNames' => ['#st' => 'status'],
-            'ExpressionAttributeValues' => [
-                ':status' => ['S' => $newStatus],
-                ':updatedAt' => ['S' => date('c')]
-            ]
-        ];
-        $this->sendDynamoRequest('UpdateItem', $payload);
-    }
-
-    /**
-     * Registra comisión a un agente en 'HabitatCommissions'
-     */
-    public function saveCommission(string $agentId, float $propertyPrice, string $propertyId): array {
-        $commissionId = 'COM-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
-        $grossCommission = $propertyPrice * 0.03; // 3%
-        $taxRetention = $grossCommission * 0.13; // 13% retención impositiva
-        $netCommission = $grossCommission - $taxRetention;
-
-        $payload = [
-            'TableName' => 'HabitatCommissions',
-            'Item' => [
-                'agentId' => ['S' => $agentId],
-                'commissionId' => ['S' => $commissionId],
-                'propertyId' => ['S' => $propertyId],
-                'propertyPrice' => ['N' => (string)$propertyPrice],
-                'grossAmount' => ['N' => (string)$grossCommission],
-                'taxRetention' => ['N' => (string)$taxRetention],
-                'netAmount' => ['N' => (string)$netCommission],
-                'status' => ['S' => 'PENDIENTE_PAGO'],
-                'createdAt' => ['S' => date('c')]
-            ]
-        ];
-
-        $this->sendDynamoRequest('PutItem', $payload);
-
+    private function mapReservation(array $item): array {
+        $created = self::s($item, 'createdAt', date('c'));
         return [
-            'commissionId' => $commissionId,
-            'agentId' => $agentId,
-            'grossAmount' => $grossCommission,
-            'taxRetention' => $taxRetention,
-            'netAmount' => $netCommission,
-            'status' => 'PENDIENTE_PAGO'
+            'id' => self::s($item, 'reservationId'),
+            'reservationId' => self::s($item, 'reservationId'),
+            'property_id' => self::s($item, 'propertyId'),
+            'propertyId' => self::s($item, 'propertyId'),
+            'propertyTitle' => self::s($item, 'propertyTitle') ?: null,
+            'user_id' => self::s($item, 'userId'),
+            'userId' => self::s($item, 'userId'),
+            'user_name' => self::s($item, 'userName'),
+            'userName' => self::s($item, 'userName'),
+            'user_phone' => self::s($item, 'userPhone'),
+            'userPhone' => self::s($item, 'userPhone'),
+            'deposit_amount' => self::n($item, 'depositAmount'),
+            'depositAmount' => self::n($item, 'depositAmount'),
+            'payment_id' => self::s($item, 'paymentId'),
+            'paymentId' => self::s($item, 'paymentId'),
+            'contract_number' => self::s($item, 'contractNumber'),
+            'status' => self::s($item, 'status', 'ACTIVA'),
+            'cancelReason' => self::s($item, 'cancelReason') ?: null,
+            'closedBy' => self::s($item, 'closedBy') ?: null,
+            'created_at' => $created,
+            'expires_at' => self::s($item, 'expiresAt', date('c', strtotime($created) + 172800)),
         ];
     }
 
     /**
-     * Obtiene el acumulado de comisiones de un agente
+     * Cierra una reserva ACTIVA (cancelada, comprada o alquilada). Quita el TTL para conservar el historial.
+     * Devuelve null si no existe; lanza la DynamoException condicional si ya no estaba ACTIVA.
      */
+    public function closeReservation(string $reservationId, string $newStatus, string $closedBy, ?string $reason = null): ?array {
+        $names = ['#st' => 'status', '#ttl' => 'ttl'];
+        $values = [
+            ':status' => self::str($newStatus),
+            ':active' => self::str('ACTIVA'),
+            ':now' => self::str(date('c')),
+            ':by' => self::str($closedBy),
+        ];
+        $set = 'SET #st = :status, updatedAt = :now, closedBy = :by';
+        if ($reason !== null) {
+            $set .= ', cancelReason = :reason';
+            $values[':reason'] = self::str(mb_substr($reason, 0, 300));
+        }
+        try {
+            $res = $this->call('UpdateItem', [
+                'TableName' => 'HabitatReservations',
+                'Key' => ['reservationId' => self::str($reservationId)],
+                'UpdateExpression' => "{$set} REMOVE #ttl",
+                'ConditionExpression' => 'attribute_exists(reservationId) AND #st = :active',
+                'ExpressionAttributeNames' => $names,
+                'ExpressionAttributeValues' => $values,
+                'ReturnValues' => 'ALL_NEW',
+            ]);
+            return $this->mapReservation($res['Attributes'] ?? []);
+        } catch (DynamoException $e) {
+            if ($e->isConditionalFailure() && $this->getReservation($reservationId) === null) return null;
+            throw $e;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Comisiones (HabitatCommissions)
+    // ------------------------------------------------------------------
+
+    /**
+     * Registra la comisión de un agente: tasa sobre el monto base y 13% de retención impositiva.
+     * Con condición: el mismo commissionId (uno por contrato) no se genera dos veces. Devuelve null si ya existía.
+     */
+    public function saveCommission(array $c): ?array {
+        $gross = $c['baseAmount'] * $c['rate'];
+        $tax = $gross * 0.13;
+        $commission = [
+            'commissionId' => $c['commissionId'],
+            'agentId' => $c['agentId'],
+            'agentName' => $c['agentName'] ?? '',
+            'agentEmail' => strtolower($c['agentEmail'] ?? ''),
+            'propertyId' => $c['propertyId'] ?? '',
+            'contractNumber' => $c['contractNumber'] ?? '',
+            'operationType' => $c['operationType'] ?? 'VENTA',
+            'baseAmount' => round($c['baseAmount'], 2),
+            'rate' => $c['rate'],
+            'grossAmount' => round($gross, 2),
+            'taxRetention' => round($tax, 2),
+            'netAmount' => round($gross - $tax, 2),
+            'status' => 'PENDIENTE_PAGO',
+            'createdAt' => date('c'),
+        ];
+        try {
+            $this->call('PutItem', [
+                'TableName' => 'HabitatCommissions',
+                'Item' => [
+                    'agentId' => self::str($commission['agentId']),
+                    'commissionId' => self::str($commission['commissionId']),
+                    'agentName' => self::str($commission['agentName']),
+                    'agentEmail' => self::str($commission['agentEmail']),
+                    'propertyId' => self::str($commission['propertyId']),
+                    'contractNumber' => self::str($commission['contractNumber']),
+                    'operationType' => self::str($commission['operationType']),
+                    'propertyPrice' => self::num($commission['baseAmount']),
+                    'rate' => ['N' => (string) $commission['rate']],
+                    'grossAmount' => self::num($commission['grossAmount']),
+                    'taxRetention' => self::num($commission['taxRetention']),
+                    'netAmount' => self::num($commission['netAmount']),
+                    'status' => self::str($commission['status']),
+                    'createdAt' => self::str($commission['createdAt']),
+                ],
+                'ConditionExpression' => 'attribute_not_exists(commissionId)',
+            ]);
+            return $commission;
+        } catch (DynamoException $e) {
+            if ($e->isConditionalFailure()) return null;
+            throw $e;
+        }
+    }
+
+    /** Comisiones de un agente (Query por la clave de partición). */
     public function getAgentCommissions(string $agentId): array {
-        $payload = [
+        $res = $this->call('Query', [
             'TableName' => 'HabitatCommissions',
             'KeyConditionExpression' => 'agentId = :aid',
-            'ExpressionAttributeValues' => [
-                ':aid' => ['S' => $agentId]
-            ]
-        ];
+            'ExpressionAttributeValues' => [':aid' => self::str($agentId)],
+        ]);
+        return $this->sortByDate(array_map(fn ($it) => $this->mapCommission($it), $res['Items'] ?? []));
+    }
 
-        $res = $this->sendDynamoRequest('Query', $payload);
-        $items = $res['Items'] ?? [];
-
-        $totalNet = 0.0;
-        $commissions = [];
-        foreach ($items as $it) {
-            $net = (float)($it['netAmount']['N'] ?? 0);
-            $totalNet += $net;
-            $commissions[] = [
-                'commissionId' => $it['commissionId']['S'] ?? '',
-                'propertyId' => $it['propertyId']['S'] ?? '',
-                'grossAmount' => (float)($it['grossAmount']['N'] ?? 0),
-                'netAmount' => $net,
-                'status' => $it['status']['S'] ?? 'PENDIENTE'
-            ];
-        }
-
-        return [
-            'agentId' => $agentId,
-            'totalBalanceUSD' => $totalNet,
-            'count' => count($commissions),
-            'commissions' => $commissions
-        ];
+    public function listCommissions(): array {
+        return $this->sortByDate(array_map(fn ($it) => $this->mapCommission($it), $this->scanAll('HabitatCommissions')));
     }
 
     /**
-     * Resumen financiero consolidado desde DynamoDB
+     * CU17: el Cajero liquida (paga) una comisión PENDIENTE_PAGO. Devuelve null si no existe;
+     * lanza la DynamoException condicional si ya estaba pagada.
      */
-    public function getFinancialSummary(): array {
-        $chargesRes = $this->sendDynamoRequest('Scan', ['TableName' => 'HabitatCharges']);
-        $items = $chargesRes['Items'] ?? [];
-
-        $totalArras = 0.0;
-        $payments = [];
-        foreach ($items as $it) {
-            $amt = (float)($it['amount']['N'] ?? 0);
-            $status = $it['status']['S'] ?? 'PAID';
-            if ($status === 'PAID') {
-                $totalArras += $amt;
+    public function payCommission(string $agentId, string $commissionId, string $paidBy, string $reference): ?array {
+        $key = ['agentId' => self::str($agentId), 'commissionId' => self::str($commissionId)];
+        try {
+            $res = $this->call('UpdateItem', [
+                'TableName' => 'HabitatCommissions',
+                'Key' => $key,
+                'UpdateExpression' => 'SET #st = :paid, paidAt = :now, paidBy = :by, paymentReference = :ref',
+                'ConditionExpression' => 'attribute_exists(commissionId) AND #st = :pending',
+                'ExpressionAttributeNames' => ['#st' => 'status'],
+                'ExpressionAttributeValues' => [
+                    ':paid' => self::str('PAGADA'),
+                    ':pending' => self::str('PENDIENTE_PAGO'),
+                    ':now' => self::str(date('c')),
+                    ':by' => self::str($paidBy),
+                    ':ref' => self::str($reference),
+                ],
+                'ReturnValues' => 'ALL_NEW',
+            ]);
+            return $this->mapCommission($res['Attributes'] ?? []);
+        } catch (DynamoException $e) {
+            if ($e->isConditionalFailure()) {
+                $exists = $this->call('GetItem', ['TableName' => 'HabitatCommissions', 'Key' => $key]);
+                if (!isset($exists['Item'])) return null;
             }
-            $payments[] = [
-                'id' => $it['paymentId']['S'] ?? '',
-                'concept' => 'Depósito de Arras Reserva #' . ($it['propertyId']['S'] ?? ''),
-                'property_id' => $it['propertyId']['S'] ?? '',
-                'amount' => $amt,
-                'method' => 'Pasarela Bancaria / Arras',
-                'status' => $status,
-                'created_at' => $it['createdAt']['S'] ?? date('c')
-            ];
+            throw $e;
         }
+    }
+
+    private function mapCommission(array $it): array {
+        return [
+            'commissionId' => self::s($it, 'commissionId'),
+            'agentId' => self::s($it, 'agentId'),
+            'agentName' => self::s($it, 'agentName') ?: null,
+            'agentEmail' => self::s($it, 'agentEmail') ?: null,
+            'propertyId' => self::s($it, 'propertyId'),
+            'contractNumber' => self::s($it, 'contractNumber') ?: null,
+            'operationType' => self::s($it, 'operationType', 'VENTA'),
+            'baseAmount' => self::n($it, 'propertyPrice'),
+            'grossAmount' => self::n($it, 'grossAmount'),
+            'taxRetention' => self::n($it, 'taxRetention'),
+            'netAmount' => self::n($it, 'netAmount'),
+            'status' => self::s($it, 'status', 'PENDIENTE_PAGO'),
+            'paidAt' => self::s($it, 'paidAt') ?: null,
+            'paidBy' => self::s($it, 'paidBy') ?: null,
+            'paymentReference' => self::s($it, 'paymentReference') ?: null,
+            'createdAt' => self::s($it, 'createdAt'),
+        ];
+    }
+
+    private function sortByDate(array $list): array {
+        usort($list, fn ($a, $b) => strcmp($b['createdAt'], $a['createdAt']));
+        return $list;
+    }
+
+    // ------------------------------------------------------------------
+    // Resumen financiero (CU19): calculado con los datos reales de DynamoDB
+    // ------------------------------------------------------------------
+    public function getFinancialSummary(): array {
+        $charges = $this->listCharges();
+        $commissions = $this->listCommissions();
+
+        $sum = fn (array $list, callable $filter, string $field = 'amount') =>
+            round(array_sum(array_map(fn ($x) => $x[$field], array_filter($list, $filter))), 2);
+        $paid = fn ($kind) => fn ($c) => $c['kind'] === $kind && $c['status'] === 'PAID';
+
+        $totalArras = $sum($charges, $paid(self::KIND_ARRAS));
+        $totalSales = $sum($charges, $paid(self::KIND_SALDO));
+        $totalRent = $sum($charges, $paid(self::KIND_CUOTA));
+        $concepts = [
+            self::KIND_ARRAS => 'Arras de reserva',
+            self::KIND_SALDO => 'Saldo de compra',
+            self::KIND_CUOTA => 'Cuota de alquiler',
+        ];
 
         return [
-            'totalVolume' => 1145000.00,
-            'totalArras' => $totalArras > 0 ? $totalArras : 30000.00,
-            'totalCommissions' => (1145000.00 * 0.03) * 0.87,
-            'payments' => $payments
+            'totalVolume' => round($totalArras + $totalSales + $totalRent, 2),
+            'totalArras' => $totalArras,
+            'totalSales' => $totalSales,
+            'totalRent' => $totalRent,
+            'totalRefunded' => $sum($charges, fn ($c) => $c['status'] === 'REFUNDED'),
+            'totalCommissions' => $sum($commissions, fn ($c) => true, 'netAmount'),
+            'pendingCommissions' => $sum($commissions, fn ($c) => $c['status'] === 'PENDIENTE_PAGO', 'netAmount'),
+            'paidCommissions' => $sum($commissions, fn ($c) => $c['status'] === 'PAGADA', 'netAmount'),
+            'payments' => array_map(fn ($c) => [
+                'id' => $c['paymentId'],
+                'kind' => $c['kind'],
+                'concept' => ($concepts[$c['kind']] ?? $c['kind'])
+                    . ($c['period'] ? " {$c['period']}" : '')
+                    . ' · ' . ($c['propertyTitle'] ?: 'Inmueble ' . $c['propertyId']),
+                'property_id' => $c['propertyId'],
+                'contractNumber' => $c['contractNumber'],
+                'clientName' => $c['clientName'],
+                'amount' => $c['amount'],
+                'method' => $c['method'],
+                'status' => $c['status'],
+                'created_at' => $c['createdAt'],
+            ], $charges),
         ];
     }
 }

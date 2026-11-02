@@ -1,15 +1,27 @@
 {
   "name": "mfe-contracts-angular",
-  "version": "1.0.0",
-  "description": "Microfrontend ERP Legal y Gestión de Contratos - Angular 17 & Module Federation",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Microfrontend ERP (Angular 18 + Angular Elements): contratos, empleados y agenda de visitas vía GraphQL",
   "scripts": {
-    "start": "ng serve --port 3002"
+    "start": "ng serve --port 3002",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development"
   },
   "dependencies": {
-    "@angular/common": "^17.2.0",
-    "@angular/core": "^17.2.0",
-    "@angular/router": "^17.2.0",
-    "rxjs": "^7.8.1",
-    "zone.js": "~0.14.3"
+    "@angular/common": "18.2.14",
+    "@angular/compiler": "18.2.14",
+    "@angular/core": "18.2.14",
+    "@angular/elements": "18.2.14",
+    "@angular/forms": "18.2.14",
+    "@angular/platform-browser": "18.2.14",
+    "rxjs": "~7.8.1",
+    "tslib": "^2.6.3"
+  },
+  "devDependencies": {
+    "@angular-devkit/build-angular": "18.2.21",
+    "@angular/cli": "18.2.21",
+    "@angular/compiler-cli": "18.2.14",
+    "typescript": "~5.5.4"
   }
 }

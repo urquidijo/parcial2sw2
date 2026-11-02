@@ -1,90 +1,132 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsArray, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
-import { PropertyType, PropertyStatus } from '../schemas/property.schema';
-
-export class LocationDto {
-  @IsString()
-  @IsNotEmpty()
-  type: string = 'Point';
-
-  @IsArray()
-  @IsNumber({}, { each: true })
-  coordinates: number[]; // [lng, lat]
-}
+import { PartialType, OmitType } from '@nestjs/mapped-types';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsLatitude,
+  IsLongitude,
+  IsNotEmpty,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsPositive,
+  IsString,
+  IsUrl,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
+import { PropertyType } from '../schemas/property.schema';
 
 export class CreatePropertyDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  code: string;
+  @MaxLength(30)
+  code?: string;
 
   @IsString()
-  @IsNotEmpty()
+  @MinLength(5, { message: 'El título debe tener al menos 5 caracteres' })
+  @MaxLength(120)
   title: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
+  @MaxLength(2000)
   description?: string;
 
-  @IsEnum(PropertyType)
+  @IsEnum(PropertyType, { message: 'Tipo de inmueble inválido' })
   propertyType: PropertyType;
 
-  @IsEnum(PropertyStatus)
   @IsOptional()
-  status?: PropertyStatus;
+  @IsString()
+  deliveryType?: string;
 
-  @IsNumber()
+  @IsNumber({}, { message: 'El precio debe ser un número' })
+  @IsPositive({ message: 'El precio debe ser mayor a 0' })
   price: number;
 
-  @IsString()
   @IsOptional()
-  currency?: string = 'USD';
-
   @IsNumber()
+  @Min(0)
+  deposit?: number;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  maintenanceFee?: number;
+
+  @IsNumber({}, { message: 'La superficie debe ser un número' })
+  @IsPositive({ message: 'La superficie debe ser mayor a 0' })
   areaSquareMeters: number;
 
-  @IsNumber()
   @IsOptional()
-  rooms?: number = 0;
+  @IsInt()
+  @Min(0)
+  rooms?: number;
 
-  @IsNumber()
   @IsOptional()
-  bathrooms?: number = 0;
+  @IsInt()
+  @Min(0)
+  bathrooms?: number;
 
-  @IsNumber()
   @IsOptional()
-  parkingSlots?: number = 0;
+  @IsInt()
+  @Min(0)
+  parkingSlots?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  address?: string;
 
   @IsString()
-  @IsNotEmpty()
-  address: string;
-
-  @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'La ciudad es obligatoria' })
   city: string;
 
   @IsString()
+  @IsNotEmpty({ message: 'La zona es obligatoria' })
+  zone: string;
+
   @IsOptional()
-  zone?: string;
+  @IsLatitude({ message: 'Latitud inválida' })
+  latitude?: number;
 
-  @ValidateNested()
-  @Type(() => LocationDto)
-  location: LocationDto;
+  @IsOptional()
+  @IsLongitude({ message: 'Longitud inválida' })
+  longitude?: number;
 
+  @IsOptional()
   @IsArray()
-  @IsOptional()
+  @IsString({ each: true })
+  @ArrayMaxSize(30)
   amenities?: string[];
 
-  @IsArray()
   @IsOptional()
+  @IsArray()
+  @IsUrl({}, { each: true, message: 'Cada foto debe ser una URL válida' })
+  @ArrayMaxSize(20)
   photos?: string[];
 
-  @IsString()
   @IsOptional()
+  @IsUrl({}, { message: 'El recorrido 3D debe ser una URL válida' })
   virtualTour3dUrl?: string;
 
   @IsOptional()
+  @IsString()
+  folioReal?: string;
+
+  @IsOptional()
+  @IsObject()
   dynamicAttributes?: Record<string, any>;
 }
+
+// El código identifica al inmueble en reservas y contratos, así que no se edita.
+export class UpdatePropertyDto extends PartialType(OmitType(CreatePropertyDto, ['code'] as const)) {}
 
 export class ReserveLockDto {
   @IsString()
@@ -97,10 +139,10 @@ export class ReserveLockDto {
 }
 
 export class GeoSearchDto {
-  @IsNumber()
+  @IsLongitude()
   longitude: number;
 
-  @IsNumber()
+  @IsLatitude()
   latitude: number;
 
   @IsNumber()

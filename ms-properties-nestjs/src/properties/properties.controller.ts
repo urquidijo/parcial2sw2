@@ -1,15 +1,23 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
 import { PropertiesService } from './properties.service';
-import { CreatePropertyDto, ReserveLockDto, GeoSearchDto } from './dto/property.dto';
+import { CreatePropertyDto, UpdatePropertyDto, ReserveLockDto, GeoSearchDto } from './dto/property.dto';
+import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
 
 @Controller('api/v1/properties')
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
 
   @Post()
+  @Roles('AGENTE', 'ADMIN')
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() createPropertyDto: any) {
-    return this.propertiesService.create(createPropertyDto);
+  create(@Body() dto: CreatePropertyDto, @CurrentUser() user: AuthUser) {
+    return this.propertiesService.create(dto, user);
+  }
+
+  @Patch(':id')
+  @Roles('AGENTE', 'ADMIN')
+  update(@Param('id') id: string, @Body() dto: UpdatePropertyDto) {
+    return this.propertiesService.update(id, dto);
   }
 
   @Get()
@@ -32,22 +40,31 @@ export class PropertiesController {
       latitude: parseFloat(lat),
       maxDistanceMeters: distance ? parseFloat(distance) : 5000,
     };
+    const { longitude, latitude, maxDistanceMeters } = geoDto;
+    const valid = Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180;
+    if (!valid || !(maxDistanceMeters > 0)) {
+      throw new BadRequestException('Parámetros inválidos: se requieren lat (-90..90), lng (-180..180) y distance > 0');
+    }
     return this.propertiesService.searchGeospatial(geoDto);
   }
 
   @Post('reset-all')
+  @Roles('ADMIN')
   @HttpCode(HttpStatus.OK)
   resetAll() {
     return this.propertiesService.resetAllProperties();
   }
 
   @Post(':id/reset')
+  @Roles('ADMIN', 'AGENTE')
   @HttpCode(HttpStatus.OK)
   resetOne(@Param('id') id: string) {
     return this.propertiesService.resetProperty(id);
   }
 
+  // Cierre de la operación (CU16): lo cambia el Cajero al registrar el saldo o la primera cuota.
   @Patch(':id/status')
+  @Roles('FINANZAS', 'ADMIN')
   @HttpCode(HttpStatus.OK)
   updateStatus(
     @Param('id') id: string,

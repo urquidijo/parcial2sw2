@@ -2,7 +2,10 @@ import { Injectable, NotFoundException, ConflictException, Logger, OnModuleInit 
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Property, PropertyDocument, PropertyStatus, PropertyType } from './schemas/property.schema';
-import { CreatePropertyDto, ReserveLockDto, GeoSearchDto } from './dto/property.dto';
+import { CreatePropertyDto, UpdatePropertyDto, ReserveLockDto, GeoSearchDto } from './dto/property.dto';
+import { AuthUser } from '../auth/auth-user';
+
+const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
 
 @Injectable()
 export class PropertiesService implements OnModuleInit {
@@ -17,33 +20,47 @@ export class PropertiesService implements OnModuleInit {
     await this.seedInitialData();
   }
 
-  async create(createPropertyDto: any): Promise<Property> {
-    const code = createPropertyDto.code || (createPropertyDto.propertyType?.substring(0, 3) + '-' + Math.random().toString(36).substring(2, 6)).toUpperCase();
-    const existing = await this.propertyModel.findOne({ code }).exec();
-    if (existing) {
+  async create(dto: CreatePropertyDto, user?: AuthUser): Promise<any> {
+    const code = (dto.code || `${dto.propertyType.substring(0, 3)}-${Math.random().toString(36).substring(2, 6)}`).toUpperCase();
+    if (await this.propertyModel.exists({ code })) {
       throw new ConflictException(`Ya existe una propiedad con el código ${code}`);
     }
 
-    const payload = {
-      ...createPropertyDto,
+    const { latitude, longitude, ...fields } = dto;
+    const photos = dto.photos ?? [];
+    const created = await new this.propertyModel({
+      ...fields,
       code,
-      photos: createPropertyDto.photos || (createPropertyDto.image ? [createPropertyDto.image] : []),
-      image: createPropertyDto.image || createPropertyDto.photos?.[0] || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
-      folioReal: createPropertyDto.folioReal || `FOLIO-${code}`,
-      brokerName: createPropertyDto.brokerName || 'Carlos Broker',
-      deliveryType: createPropertyDto.deliveryType || 'ENTREGA_INMEDIATA',
-      maintenanceFee: parseFloat(createPropertyDto.maintenanceFee) || 120.00,
-      amenities: Array.isArray(createPropertyDto.amenities) ? createPropertyDto.amenities : (createPropertyDto.amenities ? createPropertyDto.amenities.split(',').map((s: string) => s.trim()) : ['Seguridad 24/7', 'Ascensor', 'Áreas Verdes']),
-    };
+      location: this.toLocation(latitude, longitude),
+      photos,
+      image: photos[0] || DEFAULT_IMAGE,
+      amenities: dto.amenities ?? [],
+      folioReal: dto.folioReal || `FOLIO-${code}`,
+      brokerName: user?.name || 'Carlos Broker',
+      brokerEmail: user?.email,
+    }).save();
+    this.logger.log(`Inmueble ${code} registrado por ${user?.email || 'desconocido'}`);
+    return this.formatPropertyResponse(created);
+  }
 
-    const createdProperty = new this.propertyModel(payload);
-    return createdProperty.save();
+  async update(id: string, dto: UpdatePropertyDto): Promise<any> {
+    const property: any = await this.findDocument(id);
+    const { latitude, longitude, ...fields } = dto;
+    property.set(fields);
+    if (latitude !== undefined && longitude !== undefined) {
+      property.location = this.toLocation(latitude, longitude);
+    }
+    if (dto.photos) {
+      property.image = dto.photos[0] || DEFAULT_IMAGE;
+    }
+    await property.save();
+    return this.formatPropertyResponse(property);
   }
 
   async findAll(status?: string, city?: string, propertyType?: string): Promise<any[]> {
     const filter: any = {};
     if (status) filter.status = status;
-    if (city) filter.city = new RegExp(city, 'i');
+    if (city) filter.city = new RegExp(city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     if (propertyType) filter.propertyType = propertyType;
 
     const docs = await this.propertyModel.find(filter).sort({ createdAt: -1 }).limit(100).exec();
@@ -51,7 +68,11 @@ export class PropertiesService implements OnModuleInit {
   }
 
   async findOne(id: string): Promise<any> {
-    let property: any = null;
+    return this.formatPropertyResponse(await this.findDocument(id));
+  }
+
+  private async findDocument(id: string): Promise<PropertyDocument> {
+    let property: PropertyDocument | null = null;
     if (id.match(/^[0-9a-fA-F]{24}$/)) {
       property = await this.propertyModel.findById(id).exec();
     }
@@ -61,7 +82,13 @@ export class PropertiesService implements OnModuleInit {
     if (!property) {
       throw new NotFoundException(`Propiedad #${id} no encontrada`);
     }
-    return this.formatPropertyResponse(property);
+    return property;
+  }
+
+  private toLocation(latitude?: number, longitude?: number) {
+    return latitude !== undefined && longitude !== undefined
+      ? { type: 'Point', coordinates: [longitude, latitude] }
+      : undefined;
   }
 
   async findByCode(code: string): Promise<any> {
@@ -72,26 +99,21 @@ export class PropertiesService implements OnModuleInit {
     return this.formatPropertyResponse(property);
   }
 
-  // Búsqueda Geoespacial
+  // Búsqueda geoespacial (índice 2dsphere): inmuebles dentro del radio, del más cercano al más lejano.
   async searchGeospatial(geoDto: GeoSearchDto): Promise<any[]> {
     const { longitude, latitude, maxDistanceMeters = 5000 } = geoDto;
-    try {
-      const docs = await this.propertyModel.find({
-        status: PropertyStatus.DISPONIBLE,
-        location: {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: [longitude, latitude],
-            },
-            $maxDistance: maxDistanceMeters,
-          },
+    const docs = await this.propertyModel.aggregate([
+      {
+        $geoNear: {
+          near: { type: 'Point', coordinates: [longitude, latitude] },
+          distanceField: 'distanceMeters',
+          maxDistance: maxDistanceMeters,
+          spherical: true,
         },
-      }).exec();
-      return docs.map(d => this.formatPropertyResponse(d));
-    } catch (e) {
-      return this.findAll('DISPONIBLE');
-    }
+      },
+      { $limit: 50 },
+    ]);
+    return docs.map(d => this.formatPropertyResponse(d));
   }
 
   // PASO 1 SAGA: Bloqueo preventivo de la propiedad
@@ -188,16 +210,7 @@ export class PropertiesService implements OnModuleInit {
 
   // Actualización de estado general
   async updateStatus(id: string, status: string, buyerName?: string): Promise<any> {
-    let property: any = null;
-    if (id.match(/^[0-9a-fA-F]{24}$/)) {
-      property = await this.propertyModel.findById(id).exec();
-    }
-    if (!property) {
-      property = await this.propertyModel.findOne({ code: id }).exec();
-    }
-    if (!property) {
-      throw new NotFoundException(`Propiedad #${id} no existe`);
-    }
+    const property: any = await this.findDocument(id);
 
     property.status = status;
     if (buyerName !== undefined) property.reservedBy = buyerName;
@@ -239,13 +252,22 @@ export class PropertiesService implements OnModuleInit {
   private formatPropertyResponse(doc: any): any {
     const obj = doc.toObject ? doc.toObject() : doc;
     const id = obj.code || (obj._id ? obj._id.toString() : '');
-    const img = obj.image || obj.photos?.[0] || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
+    const img = obj.image || obj.photos?.[0] || DEFAULT_IMAGE;
+    const coordinates = obj.location?.coordinates;
 
     return {
       id: id,
       code: obj.code || id,
       _id: obj._id ? obj._id.toString() : id,
       title: obj.title,
+      description: obj.description || '',
+      address: obj.address || '',
+      currency: obj.currency || 'USD',
+      virtualTour3dUrl: obj.virtualTour3dUrl || null,
+      latitude: coordinates ? coordinates[1] : null,
+      longitude: coordinates ? coordinates[0] : null,
+      distanceMeters: obj.distanceMeters !== undefined ? Math.round(obj.distanceMeters) : undefined,
+      amenitiesList: Array.isArray(obj.amenities) ? obj.amenities : [],
       type: obj.propertyType,
       propertyType: obj.propertyType,
       city: obj.city,
@@ -268,6 +290,7 @@ export class PropertiesService implements OnModuleInit {
       maintenanceFee: obj.maintenanceFee || 120.00,
       deliveryType: obj.deliveryType || 'ENTREGA_INMEDIATA',
       brokerName: obj.brokerName || 'Carlos Broker',
+      brokerEmail: obj.brokerEmail || null,
       amenities: Array.isArray(obj.amenities) ? obj.amenities.join(', ') : (obj.amenities || 'Seguridad 24/7, Ascensor, Áreas Verdes'),
       location: obj.location,
       dynamicAttributes: obj.dynamicAttributes || {},

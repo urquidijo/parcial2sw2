@@ -1,12 +1,18 @@
 package com.proptech.contracts.controller;
 
+import com.proptech.contracts.dto.AppointmentDtos.CreateAppointmentRequest;
+import com.proptech.contracts.dto.AppointmentDtos.UpdateAppointmentStatusRequest;
 import com.proptech.contracts.model.Appointment;
+import com.proptech.contracts.security.KeycloakClaims;
 import com.proptech.contracts.service.AppointmentService;
+import com.proptech.contracts.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -16,70 +22,37 @@ import java.util.Map;
 public class AppointmentController {
 
     private final AppointmentService appointmentService;
+    private final UserService userService;
 
-    public AppointmentController(AppointmentService appointmentService) {
+    public AppointmentController(AppointmentService appointmentService, UserService userService) {
         this.appointmentService = appointmentService;
+        this.userService = userService;
     }
 
     @GetMapping
-    public ResponseEntity<?> getAppointments(
-            @RequestParam(required = false) String userId,
-            @RequestParam(required = false) String role) {
-        List<Appointment> list = appointmentService.getAppointments(userId, role);
-        return ResponseEntity.ok(Map.of(
-                "success", true,
-                "count", list.size(),
-                "data", list
-        ));
+    public ResponseEntity<?> getAppointments(@AuthenticationPrincipal Jwt jwt) {
+        List<Appointment> list = appointmentService.getAppointments(userService.currentUser(jwt), KeycloakClaims.effectiveRole(jwt));
+        return ResponseEntity.ok(Map.of("success", true, "count", list.size(), "data", list));
     }
 
     @PostMapping
-    public ResponseEntity<?> createAppointment(@RequestBody Map<String, Object> body) {
-        try {
-            Appointment app = new Appointment();
-            app.setPropertyId((String) body.get("propertyId"));
-            app.setPropertyTitle((String) body.getOrDefault("propertyTitle", "Inmueble Seleccionado"));
-            app.setUserId((String) body.get("userId"));
-            app.setUserName((String) body.getOrDefault("userName", "Cliente"));
-            app.setUserPhone((String) body.getOrDefault("userPhone", ""));
-            
-            if (body.get("visitDate") != null) {
-                app.setVisitDate(LocalDate.parse(body.get("visitDate").toString()));
-            }
-            app.setVisitTime((String) body.getOrDefault("visitTime", "10:00"));
-            app.setVisitType((String) body.getOrDefault("visitType", "PRESENCIAL"));
-            app.setNotes((String) body.getOrDefault("notes", ""));
-
-            Appointment saved = appointmentService.scheduleAppointment(app);
-            return new ResponseEntity<>(Map.of(
-                    "success", true,
-                    "message", "Visita agendada exitosamente en PostgreSQL",
-                    "id", saved.getId(),
-                    "data", saved
-            ), HttpStatus.CREATED);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                    "success", false,
-                    "message", e.getMessage()
-            ));
-        }
+    public ResponseEntity<?> createAppointment(@Valid @RequestBody CreateAppointmentRequest req, @AuthenticationPrincipal Jwt jwt) {
+        Appointment saved = appointmentService.scheduleAppointment(req, userService.currentUser(jwt));
+        return new ResponseEntity<>(Map.of(
+                "success", true,
+                "message", "Visita agendada para el " + saved.getVisitDate() + " a las " + saved.getVisitTime(),
+                "id", saved.getId(),
+                "data", saved
+        ), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}/status")
-    public ResponseEntity<?> updateStatus(@PathVariable String id, @RequestBody Map<String, String> body) {
-        try {
-            String status = body.get("status");
-            Appointment updated = appointmentService.updateStatus(id, status);
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Estado de la cita actualizado a " + status + " en PostgreSQL",
-                    "data", updated
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                    "success", false,
-                    "message", e.getMessage()
-            ));
-        }
+    public ResponseEntity<?> updateStatus(@PathVariable String id, @Valid @RequestBody UpdateAppointmentStatusRequest req, @AuthenticationPrincipal Jwt jwt) {
+        Appointment updated = appointmentService.updateStatus(id, req.status(), userService.currentUser(jwt), KeycloakClaims.effectiveRole(jwt));
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Visita " + id + " marcada como " + updated.getStatus(),
+                "data", updated
+        ));
     }
 }
