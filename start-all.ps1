@@ -34,6 +34,8 @@ Free-Port 8081 "ms-contracts"
 Free-Port 8002 "ms-billing"
 Free-Port 3003 "mfe-bi-next"
 Free-Port 4000 "bff-graphql"
+Free-Port 4100 "mcp-habitat-server"
+Free-Port 8003 "ms-ml-python"
 
 # 1. Iniciar n8n en Docker (si Docker está activo)
 Write-Host "`n[1/5] 🤖 Verificando Motor de Flujos n8n (:5678)..." -ForegroundColor Green
@@ -49,7 +51,7 @@ if ($LASTEXITCODE -eq 0) {
             docker start proptech-n8n | Out-Null
         } else {
             Write-Host "   📦 Creando contenedor n8n..." -ForegroundColor Gray
-            docker run -d --name proptech-n8n -p 5678:5678 -e GENERIC_TIMEZONE=America/La_Paz docker.n8n.io/n8nio/n8n:latest | Out-Null
+            docker compose -f "$workspaceRoot\docker-compose.yml" up -d n8n-automation 2>&1 | Out-Null
         }
     }
     Write-Host "   🔐 Iniciando Keycloak SSO (:8080, realm habitat)..." -ForegroundColor Gray
@@ -91,6 +93,22 @@ if (Test-Path "$workspaceRoot\bff-graphql-gateway\node_modules") {
     Write-Host "   ⚠️ Falta 'npm install' en bff-graphql-gateway. BFF GraphQL omitido." -ForegroundColor DarkYellow
 }
 
+# Servidor MCP de reportes con IA en :4100 (CU20: el gateway lo usa como cliente MCP)
+Write-Host "`n[+] 🧠 Iniciando servidor MCP de reportes (:4100)..." -ForegroundColor Green
+if (Test-Path "$workspaceRoot\mcp-habitat-server\node_modules") {
+    Start-Process $shell -ArgumentList "-NoExit", "-Command", "Set-Location '$workspaceRoot\mcp-habitat-server'; `$host.UI.RawUI.WindowTitle = 'MCP reportes (:4100)'; node src/index.js"
+} else {
+    Write-Host "   ⚠️ Falta 'npm install' en mcp-habitat-server. Los reportes con IA no funcionarán." -ForegroundColor DarkYellow
+}
+
+# Machine Learning (FastAPI) en :8003: CU03 precio y CU13 segmentos
+Write-Host "`n[+] 📈 Iniciando ms-ml-python (:8003)..." -ForegroundColor Green
+if (Test-Path "$workspaceRoot\ms-ml-python\.venv\Scripts\python.exe") {
+    Start-Process $shell -ArgumentList "-NoExit", "-Command", "Set-Location '$workspaceRoot\ms-ml-python'; `$host.UI.RawUI.WindowTitle = 'ms-ml-python (:8003)'; .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8003"
+} else {
+    Write-Host "   ⚠️ Falta el entorno de Python en ms-ml-python (ver ms-ml-python/README.md). ML omitido." -ForegroundColor DarkYellow
+}
+
 # 6. App de BI separada (Next.js) en :3003 — usa la misma sesión de Keycloak
 Write-Host "`n[+] 📊 Iniciando Dashboard BI standalone (:3003)..." -ForegroundColor Green
 if (Test-Path "$workspaceRoot\mfe-bi-next\node_modules") {
@@ -108,6 +126,8 @@ Write-Host "==========================================================" -Foregro
 Write-Host "🌐 FRONTEND WEB & GATEWAY: http://localhost:5000" -ForegroundColor White -BackgroundColor DarkBlue
 Write-Host "📊 Dashboard BI (Next.js):  http://localhost:3003 [misma sesión SSO]" -ForegroundColor White
 Write-Host "🔗 BFF GraphQL (ERP):       http://localhost:4000 [vía /api/graphql]" -ForegroundColor White
+Write-Host "🧠 Servidor MCP (reportes): http://localhost:4100/mcp [Claude Haiku vía /api/ai/report]" -ForegroundColor White
+Write-Host "📈 ms-ml-python (ML):        http://localhost:8003/docs [random forest + K-means]" -ForegroundColor White
 Write-Host "🍃 ms-properties (Catálogo): http://localhost:3001 [MongoDB Atlas]" -ForegroundColor White
 Write-Host "🐘 ms-contracts (Legal):    http://localhost:8081 [PostgreSQL Render]" -ForegroundColor White
 Write-Host "⚡ ms-billing (Pagos/Arras): http://localhost:8002 [Amazon DynamoDB]" -ForegroundColor White

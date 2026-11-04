@@ -12,6 +12,8 @@ Qué cambió para desplegar, qué variables nuevas hay en cada servicio y en qu�
 |---|---|---|
 | **Keycloak** (nuevo) | Inicio de sesión único para todas las apps. Hoy solo corre local en Docker | **Sí, crear** |
 | **BFF GraphQL** (nuevo) | `bff-graphql-gateway/`, lo usa el ERP Angular | **Sí, crear** |
+| **Servidor MCP** (nuevo) | `mcp-habitat-server/`, herramientas de los reportes con IA (CU20) | **Sí, crear** |
+| **ms-ml-python** (nuevo) | Machine Learning: precio (CU03) y segmentos de clientes (CU13) | **Sí, crear** |
 | API Gateway (`server.js`) | Valida el token, permisos por rol, caja (CU16), comisiones (CU17/18), cancelación (CU15), aviso a n8n | Sí |
 | ms-contracts (Spring) | SSO, empleados vía Keycloak, firmas, visitas, permisos por rol | Sí |
 | ms-properties (NestJS) | SSO, editar inmueble, búsqueda por cercanía, consultas | Sí |
@@ -109,6 +111,26 @@ Usuarios demo que crea el realm (contraseña `pass123`, dominio `@habitat.pro`):
 | `BFF_CONTRACTS_URL` | `https://<ms-contracts>/api/v1` |
 | `BFF_PROPERTIES_URL` | `https://<ms-properties>/api/v1/properties` |
 
+### Servidor MCP de reportes (servicio nuevo)
+
+- **Dónde:** Railway, servicio Node con *Root Directory* = `mcp-habitat-server`, arranque `npm install` y `npm start`.
+- Las herramientas son de solo lectura y llaman al gateway con el token de quien pide el reporte.
+
+| Variable | Valor |
+|---|---|
+| `MCP_PORT` | el puerto del servicio (ej. `4100`) |
+| `MCP_HOST` | `0.0.0.0` (en local es `127.0.0.1`) |
+| `HABITAT_API_URL` | `https://<gateway>/api` |
+
+### ms-ml-python (servicio nuevo)
+
+- **Dónde:** Railway, con el `Dockerfile` de `ms-ml-python/` (Python 3.11). Los modelos se entrenan al construir la imagen (~30 s).
+
+| Variable | Valor |
+|---|---|
+| `KEYCLOAK_ISSUER_URI` | `https://<keycloak>/realms/habitat` |
+| `PORT` | lo pone Railway (por defecto 8003) |
+
 ---
 
 ## 6. API Gateway (`server.js`, Railway)
@@ -118,6 +140,10 @@ Usuarios demo que crea el realm (contraseña `pass123`, dominio `@habitat.pro`):
 | `PROPERTIES_SERVICE_URL` / `CONTRACTS_SERVICE_URL` / `BILLING_SERVICE_URL` | las de siempre | No |
 | `KEYCLOAK_ISSUER_URI` | `https://<keycloak>/realms/habitat` | **Sí** |
 | `BFF_URL` | `https://<bff>/` | **Sí** |
+| `CLAUDE_API_KEY` | clave de la API de Claude (reportes con IA, CU20) | **Sí** |
+| `CLAUDE_MODEL` | `claude-haiku-5-5` (el más barato) | **Sí** |
+| `MCP_URL` | `https://<servidor-mcp>/mcp` | **Sí** |
+| `ML_SERVICE_URL` | `https://<ms-ml-python>` | **Sí** |
 | `N8N_RESERVATION_WEBHOOK_URL` | `https://<n8n>/webhook/habitat-reserva-confirmada` | **Sí** (opcional) |
 | `N8N_WEBHOOK_SECRET` | secreto largo; el mismo que la credencial de n8n | **Sí** (opcional) |
 

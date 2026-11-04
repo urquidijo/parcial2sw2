@@ -30,6 +30,8 @@ const PUBLIC_ROUTES = [
   { method: 'GET', pattern: /^\/api\/properties(\/[^/]+)?$/ },
   { method: 'GET', pattern: /^\/api\/properties\/search\/geo$/ },
   { method: 'GET', pattern: /^\/api\/health$/ },
+  // Gráficos de entrenamiento de los modelos de ML (datos sintéticos): los muestra un <img>, que no envía token
+  { method: 'GET', pattern: /^\/api\/ml\/plots\/[\w.-]+$/ },
 ];
 
 app.use('/api', async (req, res, next) => {
@@ -81,6 +83,8 @@ const CONTRACTS_SVC = baseContracts.includes('/api/v1') ? baseContracts : `${bas
 
 const baseBilling = process.env.BILLING_SERVICE_URL || process.env.MS_BILLING_URL || 'http://localhost:8002/api/v1';
 const BILLING_SVC = baseBilling.includes('/api/v1') ? baseBilling : `${baseBilling.replace(/\/$/, '')}/api/v1`;
+
+const ML_SVC = `${(process.env.ML_SERVICE_URL || 'http://localhost:8003').replace(/\/$/, '')}/api/v1/ml`;
 
 console.log('🔗 [Microservicios Configurados]:');
 console.log('   • Catálogo (MongoDB Atlas):       ', PROPERTIES_SVC);
@@ -914,35 +918,128 @@ app.post('/api/notifications/email', async (req, res) => {
 // 8. INTELIGENCIA ARTIFICIAL MULTI-MICROSERVICIO (Claude API)
 // -------------------------------------------------------------
 
-app.post('/api/ai/report', async (req, res) => {
-  const { queryText } = req.body;
-  if (!queryText) {
-    return res.status(400).json({ success: false, message: 'La consulta es requerida.' });
+// CU20: reporte por voz o texto. Claude elige herramientas MCP de solo lectura (ver ai/report-agent.js).
+// Solo personal interno; cada dato respeta los permisos del rol porque las herramientas usan el token del usuario.
+const { generateReport, ReportError } = require('./ai/report-agent');
+
+app.post('/api/ai/report', requireRoles('ADMIN', 'AGENTE', 'LEGAL', 'FINANZAS', 'ATENCION'), async (req, res) => {
+  const queryText = String(req.body?.queryText || '').trim();
+  if (queryText.length < 3 || queryText.length > 500) {
+    return res.status(400).json({ success: false, message: 'Escribe un pedido de reporte de entre 3 y 500 caracteres.' });
   }
+  try {
+    const report = await generateReport(queryText, req.headers.authorization);
+    const tools = report.consultas.map((c) => c.herramienta).join(', ') || 'sin herramientas';
+    console.log(`🤖 [CU20] "${queryText}" → ${tools} · ${report.uso.input_tokens}+${report.uso.output_tokens} tokens`);
+    return res.json({ success: true, queryText, ...report });
+  } catch (err) {
+    if (err instanceof ReportError) return res.status(err.status).json({ success: false, message: err.message });
+    console.error('[CU20] Error generando el reporte:', err);
+    return res.status(500).json({ success: false, message: 'No se pudo generar el reporte.' });
+  }
+});
 
-  // Consultar propiedades de MongoDB y contratos de PostgreSQL en paralelo
-  const [propsRes, contractsRes] = await Promise.all([
-    fetchService(PROPERTIES_SVC),
-    fetchService(`${CONTRACTS_SVC}/contracts`)
+// -------------------------------------------------------------
+// 8b. MACHINE LEARNING (ms-ml-python): CU03 precio y CU13 segmentos
+// -------------------------------------------------------------
+
+// FastAPI responde errores como { detail: "..." } o { detail: [{ msg }] }: se normalizan a { success, message }.
+function mlResult(res, result) {
+  if (result.ok) return res.status(result.status).json({ success: true, data: result.data });
+  const detail = result.data?.detail;
+  const message = Array.isArray(detail) ? detail.map((d) => d.msg).join('. ') : (detail || result.data?.message || 'Error en el servicio de ML');
+  return res.status(result.status).json({ success: false, message });
+}
+
+// CU03: precio estimado de un inmueble (lo usa el agente al publicar)
+app.post('/api/ml/predict-price', requireRoles('AGENTE', 'ADMIN'), async (req, res) => {
+  return mlResult(res, await fetchService(`${ML_SVC}/predict-price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req.body)
+  }));
+});
+
+app.get('/api/ml/models', requireRoles('ADMIN', 'AGENTE', 'LEGAL', 'FINANZAS', 'ATENCION'), async (req, res) => {
+  return mlResult(res, await fetchService(`${ML_SVC}/models`));
+});
+
+app.get('/api/ml/plots/:name', async (req, res) => {
+  try {
+    const upstream = await fetch(`${ML_SVC}/plots/${enc(req.params.name)}`);
+    if (!upstream.ok) return res.status(upstream.status).end();
+    res.set('Content-Type', upstream.headers.get('content-type') || 'image/png');
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch {
+    return res.status(503).end();
+  }
+});
+
+// CU13: segmento de cada cliente real según su actividad en el sistema.
+// Las visitas, reservas y contratos usan el id de la app; las consultas, el email (en ms-properties el id es el de Keycloak).
+const asList = (result) => (Array.isArray(result.data) ? result.data : (Array.isArray(result.data?.data) ? result.data.data : []));
+
+app.get('/api/ml/client-segments', requireRoles('ADMIN'), async (req, res) => {
+  const [clientsRes, apptRes, inqRes, resvRes, contractRes, propRes] = await Promise.all([
+    fetchService(`${CONTRACTS_SVC}/clients`),
+    fetchService(`${CONTRACTS_SVC}/appointments`),
+    fetchService(INQUIRIES_SVC),
+    fetchService(`${BILLING_SVC}/billing/reservations`),
+    fetchService(`${CONTRACTS_SVC}/contracts`),
+    fetchService(PROPERTIES_SVC)
   ]);
+  if (!clientsRes.ok) return sendResult(res, clientsRes);
 
-  const properties = Array.isArray(propsRes.data) ? propsRes.data : [];
-  const contracts = Array.isArray(contractsRes.data) ? contractsRes.data : [];
+  const appointments = asList(apptRes);
+  const inquiries = asList(inqRes);
+  const reservations = asList(resvRes);
+  const contracts = asList(contractRes);
+  const priceOf = new Map(asList(propRes).flatMap((p) => [[String(p.id), p.price], [String(p.code), p.price]]));
+  const now = Date.now();
+  const days = (date) => (date ? Math.max(0, Math.round((now - new Date(date).getTime()) / 86400000)) : null);
 
-  const totalVol = properties.reduce((acc, p) => acc + (parseFloat(p.price) || 0), 0);
-  const executiveReport = `Análisis patrimonial consolidado multi-microservicio:\n` +
-    `• Cartera de inmuebles en MongoDB Atlas: ${properties.length} propiedades con valor de $${totalVol.toLocaleString()} USD.\n` +
-    `• Registros contractuales en PostgreSQL Render: ${contracts.length} contratos formalizados.\n` +
-    `• Trazabilidad financiera: Custodia fiduciaria asegurada con TTL en Amazon DynamoDB.`;
-
-  return res.json({
-    success: true,
-    queryText,
-    executiveReport,
-    recordsCount: properties.length,
-    data: properties,
-    poweredBy: 'Anthropic Claude 3.5 Sonnet + Arquitectura de Microservicios Habitat Pro'
+  const clientes = asList(clientsRes).map((client) => {
+    const email = String(client.email || '').toLowerCase();
+    const visits = appointments.filter((a) => a.userId === client.id);
+    const inqs = inquiries.filter((q) => String(q.clientEmail || '').toLowerCase() === email);
+    const resvs = reservations.filter((r) => r.userId === client.id);
+    const ctrs = contracts.filter((c) => c.clientId === client.id && c.contractType !== 'RESERVA_CON_ARRAS' && c.status !== 'CANCELADO');
+    const prices = [
+      ...visits.map((a) => priceOf.get(String(a.propertyId))),
+      ...inqs.map((q) => priceOf.get(String(q.propertyId))),
+      ...resvs.map((r) => priceOf.get(String(r.propertyId))),
+      ...ctrs.map((c) => Number(c.totalAmount))
+    ].filter((p) => Number.isFinite(p) && p > 0);
+    const activityDays = [
+      ...visits.map((a) => days(a.createdAt || a.visitDate)),
+      ...inqs.map((q) => days(q.createdAt)),
+      ...resvs.map((r) => days(r.created_at)),
+      ...ctrs.map((c) => days(c.createdAt))
+    ].filter((d) => d !== null);
+    return {
+      id: client.id,
+      nombre: client.name || client.email,
+      visitas: visits.length,
+      consultas: inqs.length,
+      reservas: resvs.length,
+      monto_reservado_usd: resvs.filter((r) => r.status !== 'CANCELADA_REEMBOLSADA').reduce((s, r) => s + (Number(r.depositAmount) || 0), 0),
+      presupuesto_usd: prices.length ? Math.round(prices.reduce((s, p) => s + p, 0) / prices.length) : 0,
+      dias_inactivo: activityDays.length ? Math.min(...activityDays) : 365,
+      interes_alquiler: ctrs.length ? ctrs.filter((c) => c.contractType === 'ARRENDAMIENTO').length / ctrs.length : 0
+    };
   });
+
+  const [segmentRes, modelsRes] = await Promise.all([
+    fetchService(`${ML_SVC}/segment-clients`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientes })
+    }),
+    fetchService(`${ML_SVC}/models`)
+  ]);
+  if (!segmentRes.ok) return mlResult(res, segmentRes);
+  return res.json({ success: true, data: { ...segmentRes.data, modelo: modelsRes.data?.cu13_segmentos || null } });
 });
 
 // -------------------------------------------------------------

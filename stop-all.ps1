@@ -32,6 +32,8 @@ Kill-Port 8081 "ms-contracts-spring"
 Kill-Port 8002 "ms-billing-php"
 Kill-Port 3003 "mfe-bi-next"
 Kill-Port 4000 "bff-graphql"
+Kill-Port 4100 "mcp-habitat-server"
+Kill-Port 8003 "ms-ml-python"
 
 # 2. Detener contenedor de n8n si el usuario lo desea
 Write-Host "`n[2/3] Verificando contenedores Docker..." -ForegroundColor Cyan

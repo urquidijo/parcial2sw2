@@ -926,6 +926,36 @@
         <mfe-contracts id="mfeEmployeesComponent" view="empleados"></mfe-contracts>
       </section>
 
+      <!-- SECCIÓN 8: SEGMENTOS DE CLIENTES (CU13, K-means en ms-ml-python) -->
+      <section id="viewSegmentos" class="hidden view-stack">
+        <div class="page-head">
+          <div>
+            <h2>Segmentos de clientes</h2>
+            <p>Agrupa a los clientes según su actividad: visitas, consultas, reservas, presupuesto y si buscan alquilar.</p>
+          </div>
+          <button class="btn btn-secondary" onclick="cargarSegmentos()"><span data-icon="RefreshCw" data-size="14"></span>Actualizar</button>
+        </div>
+
+        <div class="stat-strip" id="segmentStrip"></div>
+
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Cliente</th><th>Segmento</th><th>Visitas</th><th>Consultas</th><th>Reservas</th><th>Presupuesto</th><th>Inactivo</th><th>Alquiler</th>
+              </tr>
+            </thead>
+            <tbody id="segmentTableBody"></tbody>
+          </table>
+        </div>
+
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:1rem 1.25rem; display:flex; flex-direction:column; gap:0.6rem;">
+          <h3 style="font-size:0.95rem;">Cómo se formaron los grupos</h3>
+          <p class="hint" id="segmentModelInfo"></p>
+          <img src="/api/ml/plots/cu13_segmentos.png" alt="Método del codo, silhouette y clientes proyectados en 2D" style="width:100%; border:1px solid var(--border); border-radius:6px;" loading="lazy">
+        </div>
+      </section>
+
       <!-- SECCIÓN 7: REPORTES POR TEXTO O VOZ -->
       <section id="viewAI" class="hidden view-stack">
         <div class="page-head">
@@ -964,11 +994,11 @@
           <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:1.1rem 1.25rem; display:flex; flex-direction:column; gap:0.75rem;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
               <div style="display:flex; align-items:center; gap:0.5rem;">
-                <h3 style="font-size:0.95rem;">Resumen</h3>
+                <h3 style="font-size:0.95rem;" id="aiReportTitle">Resumen</h3>
                 <span class="demo-only demo-tag" id="aiPoweredByBadge"></span>
               </div>
               <div style="display:flex; gap:0.5rem;">
-                <button class="btn btn-secondary" onclick="exportarResultadoExcel()"><span data-icon="Download" data-size="14"></span>Exportar CSV</button>
+                <button class="btn btn-secondary" onclick="exportarResultadoExcel()"><span data-icon="Download" data-size="14"></span>Exportar Excel</button>
                 <button class="btn btn-secondary" onclick="window.print()"><span data-icon="Printer" data-size="14"></span>Imprimir</button>
               </div>
             </div>
@@ -1020,11 +1050,11 @@
           <div class="form-group">
             <label>Hora</label>
             <select id="visitaTime" class="form-control">
-              <option value="09:30 AM">09:30 AM</option>
-              <option value="11:00 AM">11:00 AM</option>
-              <option value="03:00 PM">03:00 PM</option>
-              <option value="04:30 PM">04:30 PM</option>
-              <option value="06:00 PM">06:00 PM</option>
+              <option value="09:30">09:30</option>
+              <option value="11:00">11:00</option>
+              <option value="15:00">15:00</option>
+              <option value="16:30">16:30</option>
+              <option value="18:00">18:00</option>
             </select>
           </div>
         </div>
@@ -1311,6 +1341,7 @@
         nav.innerHTML += `<button class="nav-btn" id="tabContratos" onclick="navigate('contratos')">${HabitatIcons.html('FileText')}Contratos</button>`;
         nav.innerHTML += `<button class="nav-btn" id="tabFinanzas" onclick="navigate('finanzas')">${HabitatIcons.html('Wallet')}Caja</button>`;
         nav.innerHTML += `<button class="nav-btn" id="tabUsuarios" onclick="navigate('usuarios')">${HabitatIcons.html('Users')}Empleados</button>`;
+        nav.innerHTML += `<button class="nav-btn" id="tabSegmentos" onclick="navigate('segmentos')">${HabitatIcons.html('ChartPie')}Segmentos</button>`;
       }
 
       // App de BI separada: entra con la misma sesión de Keycloak (SSO), sin volver a pedir contraseña.
@@ -1327,11 +1358,11 @@
 
     function navigate(viewName) {
       // Bloquear accesos administrativos para el comprador
-      if (currentUser.role === 'CLIENTE' && ['ai', 'finanzas', 'usuarios'].includes(viewName)) {
+      if (currentUser.role === 'CLIENTE' && ['ai', 'finanzas', 'usuarios', 'segmentos'].includes(viewName)) {
         viewName = 'catalogo';
       }
 
-      ['viewCatalogo', 'viewCitas', 'viewReservas', 'viewContratos', 'viewFinanzas', 'viewUsuarios', 'viewAI'].forEach(id => {
+      ['viewCatalogo', 'viewCitas', 'viewReservas', 'viewContratos', 'viewFinanzas', 'viewUsuarios', 'viewAI', 'viewSegmentos'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
       });
@@ -1365,6 +1396,54 @@
       } else if (viewName === 'ai') {
         document.getElementById('viewAI').classList.remove('hidden');
         document.getElementById('tabAI')?.classList.add('active');
+      } else if (viewName === 'segmentos') {
+        document.getElementById('viewSegmentos').classList.remove('hidden');
+        document.getElementById('tabSegmentos')?.classList.add('active');
+        cargarSegmentos();
+      }
+    }
+
+    // CU13: segmentación de clientes con K-means (ms-ml-python). Solo ADMIN.
+    const SEGMENT_TONES = { 'Inversionista': 'info', 'Primera vivienda': 'ok', 'Inquilino': 'warn', 'Curioso': 'off' };
+
+    async function cargarSegmentos() {
+      const strip = document.getElementById('segmentStrip');
+      const body = document.getElementById('segmentTableBody');
+      const info = document.getElementById('segmentModelInfo');
+      body.innerHTML = `<tr><td colspan="8" class="muted" style="text-align:center; padding:2rem;">Analizando clientes…</td></tr>`;
+      try {
+        const res = await fetch(`${API_URL}/ml/client-segments`);
+        const result = await res.json();
+        if (!result.success) throw new Error(result.message);
+        const { clientes, resumen, perfiles, modelo } = result.data;
+        const money = (v) => '$' + Math.round(v || 0).toLocaleString('es-BO');
+
+        strip.innerHTML = perfiles.map(p => `
+          <div class="stat">
+            <span class="label">${esc(p.nombre)}</span>
+            <span class="value">${resumen[p.nombre] || 0}</span>
+            <span class="sub">Perfil: presupuesto ${money(p.presupuesto_usd)} · ${Math.round(p.interes_alquiler * 100)}% alquiler</span>
+          </div>`).join('');
+
+        body.innerHTML = clientes.length
+          ? clientes.map(c => `
+            <tr>
+              <td>${esc(c.nombre)}</td>
+              <td><span class="status-pill ${SEGMENT_TONES[c.segmento] || 'off'}">${esc(c.segmento)}</span></td>
+              <td>${c.visitas}</td>
+              <td>${c.consultas}</td>
+              <td>${c.reservas}</td>
+              <td>${money(c.presupuesto_usd)}</td>
+              <td>${c.dias_inactivo} días</td>
+              <td>${Math.round(c.interes_alquiler * 100)}%</td>
+            </tr>`).join('')
+          : `<tr><td colspan="8" class="muted" style="text-align:center; padding:2rem;">Todavía no hay clientes registrados.</td></tr>`;
+
+        info.textContent = modelo
+          ? `${modelo.modelo} · entrenado con ${modelo.clientes} clientes de ejemplo · silhouette ${modelo.silhouette} · coincidencia con los perfiles (ARI) ${modelo.acuerdo_con_perfiles_reales_ari}`
+          : '';
+      } catch (e) {
+        body.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--rose);">No se pudo calcular la segmentación: ${esc(e.message)}</td></tr>`;
       }
     }
 
@@ -1881,10 +1960,20 @@
       }
     }
 
+    // CU20: el gateway arma el reporte con Claude (vía las herramientas MCP) y devuelve título, resumen y tabla con datos reales.
+    let aiLastReport = null;
+
+    function formatearCelda(value, key) {
+      if (value === null || value === undefined || value === '') return '—';
+      if (typeof value === 'number' && /_usd$/.test(key)) return '$' + value.toLocaleString('es-BO', { maximumFractionDigits: 2 });
+      if (typeof value === 'number') return value.toLocaleString('es-BO');
+      return String(value);
+    }
+
     async function ejecutarConsultaIA() {
       const query = document.getElementById('aiQueryInput').value.trim();
       if (!query) {
-        alert('Por favor escribe o dicta una consulta para el Agente IA.');
+        alert('Escribe o dicta qué reporte necesitas.');
         return;
       }
 
@@ -1893,81 +1982,89 @@
       const tableHead = document.getElementById('aiTableHead');
       const tableBody = document.getElementById('aiTableBody');
 
-      reportBox.innerHTML = '<span class="muted">Generando el reporte…</span>';
+      aiLastReport = null;
+      document.getElementById('aiReportTitle').innerText = 'Resumen';
+      document.getElementById('aiPoweredByBadge').innerText = '';
+      reportBox.innerHTML = '<span class="muted">Generando el reporte… consultando los datos.</span>';
+      tableHead.innerHTML = '';
+      tableBody.innerHTML = '';
       container.classList.remove('hidden');
 
       try {
         const res = await fetch(`${API_URL}/ai/report`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ queryText: query, userRole: currentUser ? currentUser.role : 'ADMIN' })
+          body: JSON.stringify({ queryText: query })
         });
-
         const result = await res.json();
-        if (result.success) {
-          aiLastQueryResults = result.data || [];
-          document.getElementById('aiPoweredByBadge').innerText = result.poweredBy || '';
-          reportBox.innerHTML = `<strong>Resumen Ejecutivo:</strong><br>${result.executiveReport.replace(/\n/g, '<br>')}`;
-
-          tableHead.innerHTML = '';
-          tableBody.innerHTML = '';
-
-          if (aiLastQueryResults.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">No se encontraron registros activos en PostgreSQL que coincidan con la condición.</td></tr>`;
-            return;
-          }
-
-          const keys = Object.keys(aiLastQueryResults[0]);
-          let headHtml = '<tr>';
-          keys.forEach(k => {
-            headHtml += `<th>${k.replace('_', ' ').toUpperCase()}</th>`;
-          });
-          headHtml += '</tr>';
-          tableHead.innerHTML = headHtml;
-
-          aiLastQueryResults.forEach(row => {
-            let trHtml = '<tr>';
-            keys.forEach(k => {
-              const val = row[k] !== null && row[k] !== undefined ? row[k] : '&mdash;';
-              trHtml += `<td>${val}</td>`;
-            });
-            trHtml += '</tr>';
-            tableBody.innerHTML += trHtml;
-          });
-        } else {
+        if (!result.success) {
           reportBox.innerHTML = `<span style="color:var(--rose);">No se pudo generar el reporte: ${esc(result.message)}</span>`;
+          return;
         }
+
+        aiLastReport = result;
+        const tokens = (result.uso?.input_tokens || 0) + (result.uso?.output_tokens || 0);
+        const consultas = (result.consultas || []).map(c => c.herramienta).join(', ') || 'sin consultas';
+        document.getElementById('aiReportTitle').innerText = result.titulo || 'Resumen';
+        document.getElementById('aiPoweredByBadge').innerText = `${result.modelo} vía MCP · ${consultas} · ${tokens} tokens`;
+
+        reportBox.innerHTML = esc(result.resumen).replace(/\n/g, '<br>') +
+          (result.recortado ? `<div class="hint" style="margin-top:0.5rem;">Se muestran las primeras ${result.filas.length} de ${result.totalFilas} filas.</div>` : '');
+
+        if (!result.filas.length) {
+          tableBody.innerHTML = `<tr><td class="muted" style="text-align:center; padding:2rem;">Este reporte no tiene tabla de datos.</td></tr>`;
+          return;
+        }
+        tableHead.innerHTML = '<tr>' + result.columnas.map(c => `<th>${esc(c.label)}</th>`).join('') + '</tr>';
+        tableBody.innerHTML = result.filas
+          .map(row => '<tr>' + result.columnas.map(c => `<td>${esc(formatearCelda(row[c.key], c.key))}</td>`).join('') + '</tr>')
+          .join('');
       } catch (e) {
         reportBox.innerHTML = `<span style="color:var(--rose);">Sin conexión con el servicio de reportes: ${esc(e.message)}</span>`;
       }
     }
 
-    function exportarResultadoExcel() {
-      if (!aiLastQueryResults || aiLastQueryResults.length === 0) {
-        alert('No hay registros cargados para exportar a Excel.');
+    // Exportar a Excel (.xlsx) con SheetJS; la librería se descarga solo la primera vez que se exporta.
+    function cargarSheetJS() {
+      return new Promise((resolve, reject) => {
+        if (window.XLSX) return resolve(window.XLSX);
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        script.onload = () => resolve(window.XLSX);
+        script.onerror = () => reject(new Error('No se pudo cargar la librería para exportar a Excel. Revisa tu conexión.'));
+        document.head.appendChild(script);
+      });
+    }
+
+    async function exportarResultadoExcel() {
+      if (!aiLastReport || !aiLastReport.filas.length) {
+        alert('Primero genera un reporte que tenga datos.');
         return;
       }
-
-      const keys = Object.keys(aiLastQueryResults[0]);
-      let csvContent = 'data:text/csv;charset=utf-8,';
-      csvContent += keys.join(',') + '\r\n';
-
-      aiLastQueryResults.forEach(row => {
-        const rowValues = keys.map(k => {
-          let str = (row[k] !== null && row[k] !== undefined) ? String(row[k]) : '';
-          return `"${str.replace(/"/g, '""')}"`;
-        });
-        csvContent += rowValues.join(',') + '\r\n';
-      });
-
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement('a');
-      link.setAttribute('href', encodedUri);
-      link.setAttribute('download', `reporte_habitat_pro_${Date.now()}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      showToast('Reporte exportado exitosamente a formato Excel (.csv).');
+      try {
+        const XLSX = await cargarSheetJS();
+        const datos = aiLastReport.filas.map(row => Object.fromEntries(aiLastReport.columnas.map(c => [c.label, row[c.key] ?? ''])));
+        const hojaDatos = XLSX.utils.json_to_sheet(datos);
+        hojaDatos['!cols'] = aiLastReport.columnas.map(c => ({ wch: Math.max(c.label.length + 2, 14) }));
+        const hojaResumen = XLSX.utils.aoa_to_sheet([
+          [aiLastReport.titulo],
+          [],
+          ['Pedido', aiLastReport.queryText],
+          ['Generado', new Date().toLocaleString('es-BO')],
+          ['Filas', `${aiLastReport.filas.length} de ${aiLastReport.totalFilas}`],
+          [],
+          ['Resumen'],
+          [aiLastReport.resumen]
+        ]);
+        hojaResumen['!cols'] = [{ wch: 12 }, { wch: 90 }];
+        const libro = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(libro, hojaResumen, 'Resumen');
+        XLSX.utils.book_append_sheet(libro, hojaDatos, 'Datos');
+        XLSX.writeFile(libro, `reporte_habitat_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        showToast('Reporte exportado a Excel.');
+      } catch (e) {
+        alert(e.message);
+      }
     }
 
     // ACCIONES DE ADMINISTRADOR: REABRIR INMUEBLES A LA VENTA

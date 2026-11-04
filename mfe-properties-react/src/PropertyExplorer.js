@@ -376,6 +376,40 @@
     const [saving, setSaving] = React.useState(false);
     const [error, setError] = React.useState('');
     const [locating, setLocating] = React.useState(false);
+    const [estimate, setEstimate] = React.useState(null);
+    const [estimating, setEstimating] = React.useState(false);
+    const [estimateError, setEstimateError] = React.useState('');
+
+    // CU03: precio sugerido por el modelo de random forest (ms-ml-python) a partir de los datos del formulario.
+    const estimatePrice = async () => {
+      setEstimateError('');
+      if (!form.city.trim() || !(Number(form.areaSquareMeters) > 0)) {
+        setEstimateError('Completa la ciudad y la superficie para estimar el precio.');
+        return;
+      }
+      setEstimating(true);
+      try {
+        setEstimate(await apiRequest(baseApi, '/ml/predict-price', {
+          method: 'POST',
+          body: {
+            ciudad: form.city.trim(),
+            zona: form.zone.trim(),
+            tipo: form.propertyType,
+            entrega: form.deliveryType,
+            superficie_m2: Number(form.areaSquareMeters),
+            dormitorios: Number(form.rooms) || 0,
+            banos: Number(form.bathrooms) || 0,
+            parqueos: Number(form.parkingSlots) || 0,
+            comodidades: form.amenities.split(',').map((s) => s.trim()).filter(Boolean).length,
+          },
+        }));
+      } catch (err) {
+        setEstimate(null);
+        setEstimateError(err.message);
+      } finally {
+        setEstimating(false);
+      }
+    };
 
     const set = (field) => (ev) => {
       const val = ev.target.value;
@@ -435,6 +469,21 @@
           field('Precio (USD) *', 'price', { type: 'number', min: 1, step: 'any', required: true }),
           field('Arras (USD)', 'deposit', { type: 'number', min: 0, step: 'any' }),
           field('Expensas (USD/mes)', 'maintenanceFee', { type: 'number', min: 0, step: 'any' })
+        ),
+        e('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.5rem' } },
+          e('div', { style: { display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' } },
+            e('button', { type: 'button', className: 'btn btn-secondary', onClick: estimatePrice, disabled: estimating },
+              withIcon('Sparkles', estimating ? 'Estimando…' : 'Estimar precio', 14)),
+            e('span', { className: 'hint' }, 'Sugerencia del modelo de ML según ciudad, zona, tipo, superficie y ambientes.')),
+          estimateError ? e('div', { className: 'notice error' }, estimateError) : null,
+          estimate ? e('div', { className: 'notice', style: { alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' } },
+            e('div', null,
+              e('div', null, 'Precio sugerido: ', e('strong', null, money(estimate.precio_estimado_usd))),
+              e('div', { className: 'hint' },
+                `Rango probable ${money(estimate.rango_usd[0])} – ${money(estimate.rango_usd[1])} · ${money(estimate.precio_m2_usd)}/m²`),
+              estimate.avisos.map((a) => e('div', { key: a, className: 'hint', style: { color: 'var(--amber)' } }, a))),
+            e('button', { type: 'button', className: 'btn', onClick: () => setForm((f) => ({ ...f, price: String(estimate.precio_estimado_usd) })) }, 'Usar este precio'))
+            : null
         ),
         row(
           field('Superficie (m²) *', 'areaSquareMeters', { type: 'number', min: 1, step: 'any', required: true }),

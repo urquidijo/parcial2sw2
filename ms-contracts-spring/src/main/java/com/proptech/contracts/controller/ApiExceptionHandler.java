@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.RestClientException;
 
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
@@ -33,6 +34,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<?> badRequest(IllegalArgumentException e) {
         return error(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    // Fecha u hora con formato inválido (ej. una visita con "09:30 AM" en vez de "09:30")
+    @ExceptionHandler(DateTimeParseException.class)
+    public ResponseEntity<?> badDateTime(DateTimeParseException e) {
+        return error(HttpStatus.BAD_REQUEST, "Fecha u hora inválida: usa AAAA-MM-DD para la fecha y HH:mm (24 h) para la hora");
     }
 
     @ExceptionHandler(IllegalStateException.class)

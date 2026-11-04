@@ -1,0 +1,16 @@
+{
+  "name": "mcp-habitat-server",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "license": "UNLICENSED",
+  "description": "Servidor MCP de Habitat Pro: herramientas de solo lectura para reportes con IA (CU20) y el agente monitor (CU21)",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "express": "^5.3.0",
+    "zod": "^3.25.76"
+  },
+  "private": true
+}

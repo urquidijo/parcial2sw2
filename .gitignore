@@ -112,3 +112,10 @@ scratch/
 *.bak
 
 Plan_Trabajo_HabitatPro.docx
+
+# Python (ms-ml-python): entorno virtual, cachés y modelos (se regeneran con python -m ml.train o al arrancar)
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+ms-ml-python/artifacts/

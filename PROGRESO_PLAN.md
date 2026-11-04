@@ -172,11 +172,32 @@ _Última actualización: 02/11/2026_
 > ⚠️ **Para tu amigo (despliegue):** el ERP Angular se recompiló (`dist/browser/main.js`). El shell ahora carga Lucide desde `unpkg.com/lucide@0.460.0`.
 
 ## Fase 2 — IA, ML y datos · 4–7 nov
-- [ ] 2.1 CU20: Claude real + servidor MCP + exportar a `.xlsx`
+- [x] **2.1 CU20: reporte por voz o texto con Claude + MCP + Excel** — probado con Claude real: "inmuebles disponibles en Santa Cruz con su precio" → Claude usó `consultar_inmuebles(ciudad=Santa Cruz, estado=DISPONIBLE)`, devolvió resumen y tabla en 3,4 s por **USD 0,0007** (5.248 tokens de entrada + 315 de salida)
+  - **Servidor MCP nuevo** (`mcp-habitat-server/`, puerto 4100, SDK oficial de MCP v1): 7 herramientas de solo lectura (inmuebles, resumen de cartera, contratos, visitas, reservas, finanzas, comisiones) con parámetros validados. Usan el token de quien pide el reporte, así cada rol ve solo lo que le corresponde
+  - **Gateway como cliente MCP** (`ai/report-agent.js`): le pasa a Claude las herramientas del servidor MCP, ejecuta las que pida y termina con `entregar_reporte`. **Anti inyección:** Claude no escribe SQL ni consultas libres, y la tabla sale de los datos reales de una herramienta (Claude solo indica cuál), así no puede inventar filas
+  - **Modelo barato:** Claude Haiku 5.5 con esfuerzo bajo (`CLAUDE_MODEL` en el `.env`); un reporte cuesta del orden de una décima de centavo de dólar
+  - **Shell:** título, resumen y tabla con nombres de columna; **exportar a Excel (.xlsx)** con hoja de resumen y hoja de datos; el dictado por voz ya existía
+  - Probado: las 7 herramientas con datos reales; validación (estado inventado → rechazado); AGENTE pidiendo finanzas → sin acceso; MCP sin token → 401; CLIENTE pidiendo reporte → 403; pedido vacío → 400
+  - La clave vieja de `CLAUDE_API_KEY` estaba vencida; se reemplazó por una nueva (03/11)
+  - `start-all.ps1` levanta el servidor MCP (requiere `npm install` en `mcp-habitat-server`)
 - [ ] 2.2 Modelo de lectura consolidado para CU19 / CU20 (quitar valores fijos del dashboard)
 - [ ] 2.3 CU21: agente monitor (cron n8n → tools MCP → Claude → Telegram)
-- [ ] 2.4 `ms-ml-python` + CU13 K-means
-- [ ] 2.5 CU03 random forest
+- [x] **2.4 `ms-ml-python` + CU13 segmentación de clientes (K-means, no supervisado)** — microservicio nuevo en FastAPI (puerto 8003) que valida el token de Keycloak
+  - 900 clientes sintéticos con 4 perfiles; montos con log + `StandardScaler` (si no, el presupuesto aplasta al resto de variables)
+  - k = 4 elegido por el **método del codo** (la inercia baja ~30 % por grupo hasta 4 y luego ~11 %); silhouette 0,445, prácticamente igual a la de k = 3
+  - Encontró los perfiles sin conocerlos: **ARI = 0,93** con *Inversionista, Primera vivienda, Inquilino, Curioso*
+  - **Pestaña "Segmentos" del Admin:** el gateway calcula la actividad real de cada cliente (visitas, consultas, reservas, contratos) y el modelo lo clasifica. Hoy: Juan = Primera vivienda, Josue = Curioso. Incluye el gráfico del codo, silhouette y PCA
+- [x] **2.5 CU03 precio con random forest (supervisado)** — 3.000 inmuebles sintéticos con una regla de mercado documentada (USD/m² por ciudad y zona, tipo, ambientes, ±10 % de ruido)
+  - **R² = 0,89** en prueba (0,91 en validación cruzada de 5), error medio 14,5 %. Lo que más pesa: superficie 58 %, zona 21 %
+  - **Botón "Estimar precio"** en el formulario de publicar o editar inmueble: precio sugerido, rango probable (percentiles 10–90 de los 200 árboles) y "Usar este precio". Si la zona no se conoce, avisa y usa el promedio de la ciudad
+  - Ejemplo: departamento de 96 m² en Equipetrol → USD 148.000 (rango 134.500–162.500); el mismo en Calacoto → 175.000; en Plan 3000 → 61.500
+- [x] **Evidencia para el docente:** notebooks ejecutados con explicación, métricas y gráficos: `ms-ml-python/notebooks/CU03_precio_random_forest.ipynb` y `CU13_segmentacion_kmeans.ipynb`
+- [x] Probado por API: predicción (agente ✓, cliente 403, legal 403, datos inválidos 422), segmentos (admin ✓, agente 403), métricas sin token 401, gráficos públicos
+- [ ] Probar en el navegador: "Estimar precio" (carlos.broker → Publicar inmueble) y "Segmentos" (admin)
+
+> ⚠️ **Para tu amigo (despliegue):** `ms-ml-python` es un servicio nuevo (Dockerfile listo; entrena los modelos al construir). El gateway necesita `ML_SERVICE_URL`. Para correrlo en local, cada compañero crea el entorno de Python (ver `ms-ml-python/README.md`).
+
+- [x] **Corregido:** el modal "Agendar visita" enviaba la hora como "09:30 AM" y el backend la rechazaba. Ahora envía formato 24 h, y ms-contracts responde 400 con un mensaje claro ante una fecha u hora mal escrita
 - [ ] 2.6 CU04 COCO-SSD en el navegador
 
 ## Fase 3 — Móvil y offline · 6–9 nov
