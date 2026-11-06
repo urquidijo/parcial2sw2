@@ -5,5 +5,7 @@ public enum ContractStatus {
     PENDIENTE_FIRMA,
     FIRMADO,
     CANCELADO,
-    RECHAZADO
+    RECHAZADO,
+    // Pre-contrato de arras cumplido: el contrato definitivo del inmueble quedó firmado.
+    CONCLUIDO
 }

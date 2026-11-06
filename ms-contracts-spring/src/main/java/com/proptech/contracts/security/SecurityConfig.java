@@ -30,6 +30,15 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/clients").hasAnyRole("ADMIN", "LEGAL", "AGENTE")
                         // El Cajero lee la lista de empleados para asignar la comisión al agente (CU16/CU17)
                         .requestMatchers(HttpMethod.GET, "/api/v1/employees").hasAnyRole("ADMIN", "FINANZAS")
+                        // Telegram (CU21): cada empleado vincula su propio chat; los destinatarios de alertas solo los ve el ADMIN
+                        .requestMatchers("/api/v1/users/me/telegram").hasAnyRole("ADMIN", "AGENTE", "LEGAL", "FINANZAS", "ATENCION")
+                        .requestMatchers("/api/v1/telegram/**").hasRole("ADMIN")
+                        // Notificaciones push (CU06): cada usuario su dispositivo; el gateway (cuenta de servicio ADMIN) las lee
+                        .requestMatchers("/api/v1/users/me/push").authenticated()
+                        .requestMatchers("/api/v1/push/**").hasRole("ADMIN")
+                        // CU21: el agente monitor guarda sus revisiones (ADMIN); la campanita las lee el personal interno
+                        .requestMatchers(HttpMethod.GET, "/api/v1/monitor/reports").hasAnyRole("ADMIN", "AGENTE", "LEGAL", "FINANZAS", "ATENCION")
+                        .requestMatchers("/api/v1/monitor/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/users/**", "/api/v1/employees/**").hasRole("ADMIN")
                         // Visitas (CU09, CU10): el estado lo valida el servicio según el rol
                         .requestMatchers(HttpMethod.POST, "/api/v1/appointments").hasRole("CLIENTE")

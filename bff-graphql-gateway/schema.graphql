@@ -16,6 +16,8 @@ enum ContractStatus {
   FIRMADO
   CANCELADO
   RECHAZADO
+  "Pre-contrato de arras cumplido: se firmó el contrato definitivo"
+  CONCLUIDO
 }
 
 enum Sector {
@@ -83,6 +85,10 @@ type Employee {
   sector: Sector
   active: Boolean!
   createdAt: String
+  "Vinculó su Telegram con el bot (CU21)"
+  telegramLinked: Boolean!
+  "Recibe las alertas del agente monitor por Telegram (CU21)"
+  telegramAlerts: Boolean!
 }
 
 type Client {
@@ -146,5 +152,6 @@ type Mutation {
   createEmployee(input: CreateEmployeeInput!): Employee!
   updateEmployeeSector(id: ID!, sector: Sector!): Employee!
   setEmployeeActive(id: ID!, active: Boolean!): Employee!
+  setEmployeeTelegramAlerts(id: ID!, enabled: Boolean!): Employee!
   updateAppointmentStatus(id: ID!, status: AppointmentStatus!): Appointment!
 }

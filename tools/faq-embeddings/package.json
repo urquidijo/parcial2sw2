@@ -1,0 +1,12 @@
+{
+  "name": "habitat-faq-embeddings",
+  "private": true,
+  "description": "CU05: precalcula los vectores (MiniLM) de las preguntas frecuentes del asistente. Correr tras editar mfe-shell/assistant/faq.json.",
+  "scripts": {
+    "build": "node build.js",
+    "eval": "node eval.js"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "3.8.1"
+  }
+}

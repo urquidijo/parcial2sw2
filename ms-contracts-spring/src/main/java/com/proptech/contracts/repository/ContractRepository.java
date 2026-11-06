@@ -20,4 +20,5 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
     List<Contract> findByStatus(ContractStatus status);
     Optional<Contract> findFirstByPaymentReferenceIdAndContractType(String paymentReferenceId, ContractType type);
     Optional<Contract> findFirstByPropertyIdAndContractTypeAndStatusNotInOrderByCreatedAtDesc(String propertyId, ContractType type, Collection<ContractStatus> statuses);
+    List<Contract> findByPropertyIdAndContractTypeAndStatusNotIn(String propertyId, ContractType type, Collection<ContractStatus> statuses);
 }

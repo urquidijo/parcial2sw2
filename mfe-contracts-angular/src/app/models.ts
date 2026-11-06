@@ -1,5 +1,5 @@
 export type ContractType = 'PROMESA_COMPRAVENTA' | 'ARRENDAMIENTO' | 'EXCLUSIVIDAD_VENTA' | 'RESERVA_CON_ARRAS';
-export type ContractStatus = 'BORRADOR' | 'PENDIENTE_FIRMA' | 'FIRMADO' | 'CANCELADO' | 'RECHAZADO';
+export type ContractStatus = 'BORRADOR' | 'PENDIENTE_FIRMA' | 'FIRMADO' | 'CANCELADO' | 'RECHAZADO' | 'CONCLUIDO';
 export type Sector = 'AGENTE' | 'LEGAL' | 'FINANZAS' | 'ATENCION';
 export type AppointmentStatus = 'CONFIRMADA' | 'COMPLETADA' | 'CANCELADA';
 
@@ -46,6 +46,8 @@ export interface Employee {
   sector: Sector | null;
   active: boolean;
   createdAt?: string;
+  telegramLinked: boolean;
+  telegramAlerts: boolean;
 }
 
 export interface Client {

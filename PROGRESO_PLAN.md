@@ -180,8 +180,32 @@ _Última actualización: 02/11/2026_
   - Probado: las 7 herramientas con datos reales; validación (estado inventado → rechazado); AGENTE pidiendo finanzas → sin acceso; MCP sin token → 401; CLIENTE pidiendo reporte → 403; pedido vacío → 400
   - La clave vieja de `CLAUDE_API_KEY` estaba vencida; se reemplazó por una nueva (03/11)
   - `start-all.ps1` levanta el servidor MCP (requiere `npm install` en `mcp-habitat-server`)
-- [ ] 2.2 Modelo de lectura consolidado para CU19 / CU20 (quitar valores fijos del dashboard)
-- [ ] 2.3 CU21: agente monitor (cron n8n → tools MCP → Claude → Telegram)
+- [x] **2.2 Modelo de lectura consolidado (CU19 / CU20 / CU21)** — el lado de lectura de CQRS: un solo resumen que cruza MongoDB (inmuebles, consultas), PostgreSQL (visitas, contratos) y DynamoDB (cobros, reservas, comisiones)
+  - **`bi/read-model.js`** (función pura) + **`GET /api/bi/overview`** en el gateway (Admin y Finanzas). Se guarda en memoria 60 s y cualquier escritura que termine bien lo invalida. No se creó ninguna tabla ni se tocaron las bases
+  - Calcula: ingresos del mes y variación, valor de la cartera, arras en custodia, comisiones por pagar, **días promedio de cierre** (de la reserva a la última firma), **embudo de 90 días** (visitas → reservas → contratos firmados), ingresos por mes (6 meses), cartera por estado y ciudad, top de agentes y pendientes (mismos criterios del monitor). Si un servicio no responde, solo esa parte sale vacía y se avisa
+  - **Dashboard BI (`localhost:3003`)**: pestaña nueva **"Resumen"** con indicadores, gráfico de barras apiladas de ingresos por mes (con tooltip y "Ver como tabla"), embudo, cartera, agentes y "Requiere atención". El "Libro mayor" quedó igual en su pestaña
+  - **Herramienta MCP `resumen_negocio`** (la 10.ª): Claude la usa primero para totales y tendencias. Prueba real de CU20, "¿cómo van los ingresos por mes y comparado con el mes pasado?": **1 sola llamada** (antes eran 2–3), 7.211 + 353 tokens (~USD 0,001)
+  - Probado por API: admin 200, finanzas 200 (sin consultas de clientes, que no le corresponden: se avisa), agente 403, sin token 401; segunda llamada desde la caché en 5 ms (la primera tarda 2,8 s); `?fresh=1` recalcula
+  - Nota de datos: hay 7 reservas y solo 2 visitas registradas (las reservas de demo se hicieron sin agendar visita), por eso el embudo muestra "—" en esa conversión en lugar de 350 %
+  - [ ] Probar en el navegador: admin → Dashboard BI → pestaña Resumen
+
+> ⚠️ **Para tu amigo (despliegue):** el gateway tiene una carpeta nueva `bi/`, que ya está en el `Dockerfile` (`COPY bi ./bi`). Hay que redesplegar el gateway, el servidor MCP (herramienta nueva) y el BI de Vercel. No se necesitan variables nuevas.
+- [x] **Ciudad y zona con listas desplegables** en "Publicar / Editar inmueble": salen de las zonas que conoce el modelo de precios (`GET /api/ml/locations`), con la opción "Otra…" para escribir. Así la estimación de precio reconoce siempre la zona
+- [x] **Vinculación de Telegram por empleado** (base para CU21)
+  - Telegram no permite que un bot escriba a un número de teléfono: la persona tiene que abrir el bot y pulsar "Iniciar". Por eso cada empleado pulsa **"Conectar Telegram"** en el encabezado → se abre `t.me/habitatPro_bot?start=<código>` → pulsa Iniciar → la app lo confirma sola y el bot le manda un mensaje
+  - En **"Empleados"** (ERP Angular) el Admin ve quién tiene Telegram vinculado y activa **"Recibe alertas"** por empleado. No se puede activar a quien no se vinculó (409). El Administrador recibe alertas al vincularse
+  - En PostgreSQL (Render) se agregaron 2 columnas a `users`: `telegram_chat_id` y `telegram_alerts`. Las creó Spring al arrancar, vacías; no se tocaron datos. El chat id nunca se expone en el JSON, solo `telegramLinked`
+  - Probado por API: cliente 403, link generado con el bot real, verificar antes de pulsar Iniciar → pendiente, código de otro usuario 403, código inventado 410, GraphQL con los campos nuevos
+  - [ ] Probar en el navegador: "Conectar Telegram" → Iniciar en el bot → "Telegram vinculado"; luego como admin activar "Recibe alertas"
+- [~] **2.3 CU21: agente monitor del negocio ("monitorea mi negocio")** — Claude Haiku + herramientas MCP revisa el negocio y entrega alertas priorizadas con acción sugerida y responsable
+  - **Habilidades del agente** (herramientas MCP, solo lectura): reservas (horas para vencer), contratos (días sin firmar), **cobros pendientes** (nueva: saldos y cuotas atrasadas), comisiones (días sin pagar), **consultas de clientes** (nueva: horas sin responder) y visitas. El agente decide cuáles usar y prioriza: alta (reserva vence en < 24 h, cuota atrasada, consulta > 48 h), media, baja
+  - **Campanita** en el encabezado (todo el personal): contador de alertas nuevas, último resumen y las 6 revisiones anteriores; el Admin tiene **"Revisar ahora"**. Cada revisión se guarda en la tabla nueva `monitor_reports` (PostgreSQL)
+  - **Telegram vía n8n** (`n8n/habitat_monitor_cu21.json`): cada mañana a las 08:00 pide la revisión al gateway y envía un mensaje a cada empleado con Telegram vinculado y "Recibe alertas" activo
+  - Probado con Claude real: revisión en 23 s por **USD 0,0016**; usó 6 herramientas y encontró 3 pendientes reales (2 pre-contratos de arras duplicados sin firmar en DEP-VALLE-101, un saldo de compra sin fecha de firma, la comisión de Carlos con 17 días sin pagar). Permisos: agente 403, cliente 403; webhook de n8n sin secreto 403; envío de prueba por Telegram OK
+  - [x] **Cuenta de servicio `habitat-monitor` creada en Keycloak** (04/11). Probada la revisión programada, la misma llamada que hace n8n a las 08:00: el gateway obtuvo el token de la cuenta, el agente usó 7 herramientas (incluida `resumen_negocio`) y entregó 2 alertas medias reales, guardadas en la campanita. Telegram: 1 de 1 enviado. Costo: 9.131 + 1.337 tokens
+  - [ ] Probar en el navegador: campanita como admin → "Revisar ahora"; vincular Telegram, activar "Recibe alertas" y volver a revisar (llega el mensaje)
+
+> 📌 **Cuenta de servicio del monitor:** para la revisión programada, n8n no usa credenciales de Keycloak; llama al gateway con el secreto del webhook y el gateway pide el token de la cuenta de servicio `habitat-monitor` (rol ADMIN). Está declarada en `keycloak/habitat-realm.json` (se importa en un Keycloak nuevo); para un Keycloak que ya existe: poner `KEYCLOAK_MONITOR_CLIENT_SECRET` en el `.env` y correr `node keycloak/add-monitor-client.js`
 - [x] **2.4 `ms-ml-python` + CU13 segmentación de clientes (K-means, no supervisado)** — microservicio nuevo en FastAPI (puerto 8003) que valida el token de Keycloak
   - 900 clientes sintéticos con 4 perfiles; montos con log + `StandardScaler` (si no, el presupuesto aplasta al resto de variables)
   - k = 4 elegido por el **método del codo** (la inercia baja ~30 % por grupo hasta 4 y luego ~11 %); silhouette 0,445, prácticamente igual a la de k = 3
@@ -198,20 +222,171 @@ _Última actualización: 02/11/2026_
 > ⚠️ **Para tu amigo (despliegue):** `ms-ml-python` es un servicio nuevo (Dockerfile listo; entrena los modelos al construir). El gateway necesita `ML_SERVICE_URL`. Para correrlo en local, cada compañero crea el entorno de Python (ver `ms-ml-python/README.md`).
 
 - [x] **Corregido:** el modal "Agendar visita" enviaba la hora como "09:30 AM" y el backend la rechazaba. Ahora envía formato 24 h, y ms-contracts responde 400 con un mensaje claro ante una fecha u hora mal escrita
-- [ ] 2.6 CU04 COCO-SSD en el navegador
+- [x] **2.6 CU04 autocompletar la ficha desde fotos (Deep Learning + IA local)** — TensorFlow.js + COCO-SSD corren **en el navegador** del agente (PC o celular): las fotos no salen del dispositivo y no cuesta nada
+  - En "Publicar / Editar inmueble" → **"Autocompletar desde fotos"**: el agente elige fotos, ve los recuadros de lo detectado ("cama 95 %", "inodoro 90 %") y recibe sugerencias que confirma con casillas: dormitorios (una foto con cama = un dormitorio), baños (una foto con inodoro = un baño), parqueos (autos), comodidades "Cocina equipada" y "Amoblado"
+  - **Peso:** el modelo original pesa 17,2 MB; se **cuantizó a 8 bits** (`mfe-properties-react/tools/quantize-model.js`) y quedó en **4,8 MB**, servido desde el propio microfrontend. Con TensorFlow.js (~0,4 MB comprimido) se descarga **solo al usar el botón** y queda en caché
+  - Precisión comprobada contra el original con 4 fotos (dormitorio, baño, cocina, sala): detectan lo mismo (cama 95 %/95 %, inodoro 90 %/90 %, silla 98 %/94 %); solo cambian detecciones dudosas (< 55 %), que se descartan con el umbral del 50 %
+  - Límites: COCO-SSD no reconoce piscina, balcón o jardín, y puede fallar con fotos oscuras; por eso solo sugiere y el agente confirma
+- [ ] Probar en el navegador: carlos.broker → Publicar inmueble → "Autocompletar desde fotos" con fotos de dormitorio, baño y cocina
 
 ## Fase 3 — Móvil y offline · 6–9 nov
-- [ ] PWA: `manifest.json` + Service Worker + responsive
-- [ ] CU22: offline (catálogo guardado + cola IndexedDB + `Idempotency-Key`)
-- [ ] `Idempotency-Key` en visitas/acta (Spring) y reservas (`server.js`)
-- [ ] CU06: notificaciones push
-- [ ] CU05: asistente de ayuda offline (MiniLM)
+- [x] **3.1 PWA instalable + móvil**
+  - `mfe-shell/manifest.webmanifest`, íconos de `mfe-shell/icons/` (los genera `tools/make-icons.ps1`), y `mfe-shell/sw.js`, un Service Worker escrito a mano.
+  - Qué guarda el Service Worker:
+    - la app y los microfrontends;
+    - las librerías de CDN con versión fija (React quedó fijado en 18.3.1);
+    - el catálogo y las ciudades/zonas (primero intenta la red; si no hay, usa la copia guardada);
+    - las fotos (hasta 200).
+  - Nunca guarda escrituras, sesión, IA ni finanzas.
+  - Botón **"Instalar app"** y aviso "Hay una versión nueva → Actualizar".
+  - En el **celular (≤ 640 px)**:
+    - la navegación pasa a una **barra inferior**;
+    - los modales ocupan toda la pantalla;
+    - las zonas táctiles miden 44 px;
+    - los campos usan letra de 16 px, para que iPhone no haga zoom.
+  - Corregido durante las pruebas: dos escrituras simultáneas en la caché ("Entry already exists") rompían la vuelta del login de Keycloak. Ahora guardar en caché nunca rompe una respuesta.
+- [x] **3.2 `Idempotency-Key`** (`idempotency/middleware.js`, en el gateway, la puerta única)
+  - Rutas: reservar (saga de arras), cancelar con reembolso, agendar visita, consulta y cobro en caja.
+  - El shell pone la clave a toda escritura y la reutiliza si el mismo pedido sigue en curso o se perdió la respuesta (doble toque, mala señal). Al recibir la respuesta la libera, para que "reservar → cancelar → reservar" no reciba la respuesta vieja.
+  - Comportamiento ante una clave ya usada:
+    - mismo pedido → misma respuesta, sin volver a ejecutar (`Idempotent-Replayed: true`);
+    - mientras sigue en curso → 409;
+    - misma clave con otro pedido → 422;
+    - error 5xx → se puede reintentar.
+  - Probado con un DynamoDB simulado: 7 de 7 casos correctos, y solo se ejecutaron las operaciones que debían.
+  - Si DynamoDB no responde, la petición sigue normal y queda en el log.
+  - [x] Tabla `habitat_idempotency` creada en DynamoDB por el usuario (05/11) con `node scripts/create-idempotency-table.js` (pago por uso, TTL de 24 h). **Probado contra DynamoDB real:** el pedido repetido devolvió la respuesta guardada (`Idempotent-Replayed: true`) sin ejecutarse otra vez, y la misma clave con otro pedido dio 422
+- [x] **3.3 CU22 sin conexión**
+  - Sin red, la app abre en **modo lectura** con el último perfil guardado (nunca el token) y el **catálogo guardado**, con el aviso "Estás viendo el catálogo guardado el dd/mm hh:mm".
+  - **Agendar visita** y **enviar consulta** se guardan en una cola en IndexedDB (`mfe-shell/src/pwa/offline-queue.js`), cada una con su Idempotency-Key.
+  - **Reservar, cancelar, cobrar y firmar no se encolan:** mueven dinero o compiten por el inmueble, así que piden conexión.
+  - Botón **"Pendientes (n)"**, con la lista y la opción de descartar.
+  - Al volver la red aparece **"Reconectar"**. Al iniciar sesión, la cola se envía sola; si el servidor rechaza algo, se avisa el motivo.
+  - **Probado en Chrome real** (sin ventana, con DevTools): instalable; caché de app, librerías, catálogo y fotos; recarga sin red en modo lectura con 5 inmuebles; consulta sin red → en cola (202); reserva sin red → 503 con mensaje claro; al reconectar la cola se vació sola.
+  - El borrador anterior `mfe-shell/src/pwa/offline-sync-manager.js` (nunca se cargaba) queda reemplazado; se puede borrar.
+  - [ ] Probar en el navegador: DevTools → Application (manifest + Service Worker) y Network → "Offline"
+- [x] **3.4 CU06 notificaciones push de reservas** (Web Push + VAPID; llegan aunque la app esté cerrada)
+  - **ms-contracts:**
+    - tabla nueva **`push_subscriptions`** en Render, que Spring creó vacía al arrancar (05/11);
+    - `PUT/DELETE /users/me/push`: cada usuario registra o quita su dispositivo, y el dueño sale del token;
+    - `GET/DELETE /push/subscriptions`: solo ADMIN, es decir, la cuenta de servicio del gateway.
+  - **Gateway** (`push/notify.js` + `web-push` 3.6.7):
+    - avisos de **reserva confirmada**, **reserva cancelada/reembolsada** y **reserva por vencer** (menos de 6 h; se revisa cada 30 min, un solo aviso por reserva);
+    - los avisos van en segundo plano: si fallan, no frenan la operación;
+    - los dispositivos que ya no existen (404/410) se borran solos;
+    - el token de la cuenta de servicio `habitat-monitor` se reutiliza hasta que vence (`serviceAuthorization()`), y lo comparte con el monitor de las 08:00.
+  - **App:**
+    - en "Mis reservas", bloque **"Avisos en este dispositivo"** con "Activar avisos", "Desactivar" y "Probar aviso";
+    - explica los casos de iPhone sin instalar, navegador sin soporte o permiso bloqueado;
+    - al tocar el aviso se abre la app en Reservas.
+  - Probado por API: suscribir OK, suscripción inválida rechazada, un cliente leyendo las de otros → 403, borrar OK, sin sesión → 401. La suscripción de prueba se borró.
+  - [x] Claves VAPID generadas por el usuario con `node scripts/gen-vapid.js` y guardadas en el `.env` (05/11)
+  - [x] **Probado en el navegador por el usuario (Chrome, PC):** "Activar avisos" → "Probar aviso" → llegó la notificación de Windows "Habitat Pro · Los avisos están activos en este dispositivo"
+  - Para probar en un **Android sin desplegar:** reenvío de puertos USB de Chrome (`chrome://inspect` → Port forwarding 5000 y 8080). Así `localhost` del celular apunta a la PC y el login de Keycloak funciona. Un túnel tipo trycloudflare no alcanza: cambia el emisor de los tokens y la dirección de vuelta del login. En iPhone hace falta HTTPS real (el despliegue) y la app instalada
+  - [ ] Probar en el celular: reservar como juan.comprador con la app cerrada → llega "Reserva confirmada"
+- [x] **3.5 CU05 asistente que guía por el sistema** (cliente y empleados; botón **"Ayuda"** flotante, en el celular sobre la barra inferior)
+  - **Sin conexión primero:**
+    - 33 preguntas frecuentes en español por rol (`mfe-shell/assistant/faq.json`), cada una con un botón que lleva a la pantalla correcta: "Ir a Mis reservas", "Ver pendientes", "Conectar Telegram"…;
+    - el modelo **MiniLM** (`Xenova/all-MiniLM-L6-v2` cuantizado, unos 23 MB) corre **en el navegador** con transformers.js 3.8.1, se descarga la primera vez que se abre la ayuda y queda guardado;
+    - los vectores de la FAQ vienen precalculados en int8 (97 KB, `tools/faq-embeddings`: `npm run build`).
+  - **Puntaje híbrido**, 60 % semántico y 40 % palabras clave en español (`mfe-shell/assistant/matcher.js`, el mismo código en el navegador y en la evaluación). MiniLM está entrenado en inglés: solo, acierta 21 de 30; con el híbrido, 29 de 30.
+  - **Evaluación** (`npm run eval`, 34 preguntas redactadas distinto a la FAQ, incluidas 4 fuera de tema):
+    - 26 respondidas directo y bien, 3 con la correcta entre las sugerencias y 2 directas equivocadas ("contratamos un agente nuevo" → contratos; una pregunta de cifras → ficha);
+    - las 3 preguntas fuera de tema (capital de Francia, una receta, un partido de fútbol) no se responden con la FAQ;
+    - ojo: las preguntas de prueba las escribió quien armó la FAQ, así que las palabras clave salen favorecidas.
+  - **Umbrales:**
+    - 0,45 o más → responde directo;
+    - entre 0,36 y 0,45 → "¿Te refieres a…?" con 3 opciones;
+    - menos → "No encontré eso".
+  - **Respaldo en línea solo si el usuario lo pide:** "Preguntar al asistente IA" → `POST /api/ai/assistant`.
+    - Claude Haiku con esfuerzo bajo, máximo 300 tokens, y la guía de su rol como contexto.
+    - Sin herramientas ni datos del negocio: para cifras manda a Reportes.
+    - Límite de **10 preguntas por hora por usuario**.
+  - **Probado en Chrome real** (sin ventana):
+    - el modelo cargó en 5,8 s;
+    - "quiero apartar un departamento" → reservar; "¿me devuelven la plata si cancelo?" → cancelar reserva; "capital de Francia" → "No encontré eso" + IA;
+    - **sin red**, "cómo agendo una visita" respondió bien;
+    - el agente recibe sus propias respuestas (estimar precio, autocompletar desde fotos);
+    - el botón de acción cierra el panel y abre la sección.
+  - Prueba real con Claude: respuesta correcta en 2,3 s, sin inventar funciones. API: sin sesión → 401; pregunta vacía → 400.
+  - [ ] Probar en el navegador: botón "Ayuda" con distintos roles
+
+> ⚠️ **Para tu amigo (despliegue, Fase 3):**
+> - **Gateway:** carpetas nuevas `idempotency/` y `push/` (ya están en el `Dockerfile`) y la dependencia nueva `web-push` (`npm install`).
+> - **Variables nuevas del gateway:** `IDEMPOTENCY_TABLE`, las mismas `AWS_*` reales de ms-billing, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y `VAPID_SUBJECT` (las mismas claves del `.env` local; si cambian, hay que volver a activar los avisos), y `KEYCLOAK_MONITOR_CLIENT_SECRET` (ahora también la usa el push).
+> - **Shell:** archivos nuevos `sw.js`, `manifest.webmanifest`, `icons/`, `src/pwa/offline-queue.js` y `assistant/`. El Service Worker y los avisos **exigen HTTPS** (Vercel ya lo tiene).
+> - **ms-contracts:** recompilar (tabla `push_subscriptions`).
 
 ## Refactors de arquitectura (al final, decisión del equipo)
 Son internos a cada microservicio: no cambian rutas, JSON ni datos. Al terminar cada uno se repiten las pruebas por API para confirmar que nada se rompió.
-- [ ] **DDD en ms-properties:** agregado `Property` con las reglas (reservar, liberar, confirmar), value objects `Price` / `Location`, evento `PropertyReserved`, repositorio
-- [ ] **Hexagonal en ms-contracts:** dominio sin Spring, puertos (`ContractRepositoryPort`…) y adaptadores (JPA, REST)
-- [ ] **Clean en ms-billing:** casos de uso (`ChargeArras`, `RefundArras`, `RegisterRentPayment`), entidades e interfaces hacia afuera
+- [x] **Red de seguridad** (`tests/api-snapshot.js`, solo lectura): una "foto" de **31 respuestas** de los 3 servicios, a través del gateway y del BFF GraphQL, con 5 roles. Incluye los errores esperados: 404, 400, 403 y la regla de reservar un inmueble no disponible (409).
+  - Se tomó antes de refactorizar, se verificó que fuera estable y se comparó después de cada refactor: **31 de 31 idénticos** en los tres casos (rutas, estados HTTP, campos y mensajes).
+- [x] **DDD en ms-properties** (`src/properties/domain/`)
+  - **Agregado raíz `Property`** con las invariantes del ciclo de reserva: solo un inmueble DISPONIBLE se bloquea; liberar lo deja DISPONIBLE y sin titular.
+  - **Value objects** `Money` y `GeoLocation`.
+  - **Eventos de dominio:** `PropertyReservationLocked`, `PropertyReleased`, `PropertyReserved` y `PropertyStatusChanged`.
+  - **Repositorio:** la interfaz vive en el dominio y la implementación Mongo en `infrastructure/`.
+  - El servicio de aplicación carga el agregado, aplica la regla, guarda y publica los eventos. Las consultas siguen como lecturas directas (CQRS).
+  - Pruebas del dominio (11 de 11): doble reserva rechazada, liberar, confirmar, eventos en orden, `Money` negativo y latitud 99 rechazados.
+- [x] **Hexagonal en ms-contracts** (`contract/`)
+  - **Dominio** `ContractRules`, sin imports de Spring ni JPA (verificado): reglas de firma, anulación, un contrato activo por inmueble, control notarial y hash SHA-256.
+  - **Puertos de entrada:** 5 casos de uso.
+  - **Puerto de salida:** `ContractRepositoryPort`.
+  - **`ContractApplicationService`.**
+  - **Adaptadores:** REST (`adapter/in/web`) y JPA (`adapter/out/persistence`).
+  - Se quitaron el `ContractService` y el `ContractController` viejos.
+  - Pruebas del dominio: 13 de 13.
+- [x] **Clean en ms-billing**
+  - **Entidades** `src/Domain/` (`BillingRules`, `RuleViolation`).
+  - **Casos de uso** `src/Application/UseCase/`: `ChargeArras`, `RefundCharge`, `ManageReservations`, `RegisterOperationPayment` y `ManageCommissions`.
+  - **Puerto** `BillingRepository`.
+  - **Infraestructura** `DynamoBillingRepository`: traduce los errores de DynamoDB a `ConcurrentUpdate`.
+  - **Controladores** como adaptadores de interfaz.
+  - `DynamoStorageService` quedó sin cambios.
+  - Pruebas de los casos de uso con un repositorio en memoria: 17 de 17 (idempotencia de arras, pasarela que rechaza, reembolso idempotente, cuota duplicada 409, comisión 3 % − 13 %, un agente solo ve las suyas).
+- [x] **Visible en el modo demo** (`?demo=1`)
+  - Botón **"Arquitectura"** en el encabezado: muestra, para el gateway y los 3 servicios, el patrón, las capas con sus carpetas, las invariantes del agregado y los **últimos eventos de dominio**. Cada servicio expone `GET /api/v1/architecture` y el gateway los junta en `GET /api/architecture`.
+  - Las etiquetas demo de cada microfrontend dicen también la arquitectura ("… · DDD", "· Hexagonal", "· Clean Architecture").
+- [x] **Prueba de pantallas en Chrome real** (solo lectura), sin errores de JavaScript:
+  - cliente → catálogo (5), Mis reservas y Mis contratos (Angular → GraphQL);
+  - Legal → 10 contratos;
+  - admin en demo → panel con las 4 piezas y Caja con los totales.
+- [x] **Prueba de flujos que escriben** (`node tests/flow-smoke.js`), corrida por el usuario el 05/11 con DEP-L81T: **17 de 17 OK**. La saga tardó 4,7 s; hubo replay con Idempotency-Key, doble reserva rechazada, contrato generado, firmado y anulado (con sus reglas de dominio), cancelación con reembolso y los eventos de dominio en orden. Recorre: reserva con saga → repetición con la misma Idempotency-Key → doble reserva rechazada → contrato generado, firmado y anulado → cancelación con reembolso. El inmueble queda DISPONIBLE y quedan registros de prueba anulados o reembolsados
+
+## Recorrido completo en el navegador (06/11) y arreglos
+- [x] **Recorrido de la guía con Chrome visible**, manejado por Claude y aprobado por el usuario, con datos reales. Pasos:
+  - arquitectura en modo demo;
+  - Juan: "Cerca de mí", consulta, visita y reserva de DEP-UJOB (saga en 4,4 s, Telegram);
+  - Carlos: publica **DEP-7R9F** con fotos (TF.js) y precio sugerido (USD 164.500), responde la consulta y ve su agenda;
+  - Elena: genera **CTR-BFBEEC0C** y da fe pública; Juan firma;
+  - María: cobra el saldo (venta cerrada, comisión generada) y la liquida;
+  - Juan: reserva y cancela DEP-L81T;
+  - admin: segmentos, reporte con IA (9,5 s), monitor (26 s, Telegram) y dashboard con la misma sesión;
+  - vista de celular: ayuda, sin conexión y cola enviada al reconectar.
+
+  Estado final: DEP-UJOB vendido; DEP-L81T y DEP-7R9F disponibles.
+- [x] **Pre-contrato de arras que quedaba "Pendiente de firma" tras la venta.**
+  - Nuevo estado **CONCLUIDO**: al quedar FIRMADO el contrato definitivo de un inmueble, su pre-contrato de arras activo pasa a CONCLUIDO, con la nota "Concluido: se firmó el contrato definitivo CTR-…". Es una regla en el núcleo hexagonal (`ContractRules`, `ContractApplicationService.sign`).
+  - CONCLUIDO cuenta como cerrado (no bloquea nuevas reservas) y no se puede anular.
+  - `ContractSchemaMigration` (idempotente) amplió la restricción CHECK de `contracts.status` en Render para admitir CONCLUIDO, con aprobación del usuario. No cambió ninguna fila.
+  - También se agregó en GraphQL (BFF), MCP y el ERP Angular, con la etiqueta "Concluido" y sin el botón "Anular".
+  - Los pre-contratos que ya quedaron pendientes antes del arreglo (DEP-UJOB, DEP-VALLE-101) no se tocaron.
+  - [x] Prueba de punta a punta corrida por el usuario (06/11) con DEP-7R9F: **21 de 21 OK**. Cuando el cliente firma, el contrato queda FIRMADO y **ARRAS-094786C3 pasa a CONCLUIDO** ("Concluido: se firmó el contrato definitivo CTR-26C92A4D"). Al cancelar la reserva, el pre-contrato sigue CONCLUIDO, el cobro queda REFUNDED y el inmueble DISPONIBLE
+- [x] **Arreglos visuales** (solo CSS y texto; verificados en Chrome):
+  - los modales tienen altura máxima y solo se desplaza su cuerpo: el pie con los botones queda siempre visible y **el mapa ya no lo tapa**;
+  - la etiqueta de estado de la ficha tiene su estilo;
+  - fechas y horas en 24 h (vencimiento de reservas, campanita, consultas);
+  - en el celular, el buscador del catálogo ocupa todo el ancho y los filtros van en dos columnas iguales;
+  - en el encabezado, con menos de 1500 px, los botones secundarios quedan solo con ícono y ningún texto se parte.
+- [x] **Otros arreglos:**
+  - los inmuebles **ALQUILADOS** se mostraban como "Vendido": ahora dicen "Alquilado", y el filtro de estado tiene "Alquilados";
+  - `/api/health` marcaba ms-contracts "DOWN" porque contaba su 401 sin sesión como caída;
+  - dos respuestas de la ayuda nombraban botones que no existen ("Reservar con arras", "Cancelar y reembolsar").
+- [x] **Comisión antigua COM-97D511D1 corregida en DynamoDB**, con aprobación del usuario (06/11).
+  - Se generó sin correo ni nombre del agente, y "Mis comisiones" filtra por correo, así que Carlos no la veía.
+  - Solo se completaron `agentEmail` y `agentName`. La clave (`AGT-CARLOS-BROKER`, que ya era la de su cuenta), los montos, el estado y las fechas quedaron intactos.
+  - El número de contrato se dejó vacío porque no se puede determinar con certeza.
+  - Ahora Carlos ve 3 operaciones (USD 6.394,5 por cobrar y USD 6.525 cobrados), igual que el admin.
 
 ## Fase 4 — Cierre · 9–10 nov
 - [ ] ICONIX de cada CU (descripción, robustez, secuencia) + modelo de dominio

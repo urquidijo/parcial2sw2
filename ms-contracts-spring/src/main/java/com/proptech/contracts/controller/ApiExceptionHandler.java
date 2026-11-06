@@ -1,5 +1,6 @@
 package com.proptech.contracts.controller;
 
+import com.proptech.contracts.contract.domain.ContractAccessDenied;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -54,6 +55,12 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<?> forbidden(AccessDeniedException e) {
+        return error(HttpStatus.FORBIDDEN, e.getMessage());
+    }
+
+    // Hexagonal: el dominio de Contratos lanza su propia excepción (sin Spring Security); aquí se traduce a 403.
+    @ExceptionHandler(ContractAccessDenied.class)
+    public ResponseEntity<?> contractForbidden(ContractAccessDenied e) {
         return error(HttpStatus.FORBIDDEN, e.getMessage());
     }
 

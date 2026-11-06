@@ -96,6 +96,17 @@
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false
+    },
+    {
+      "clientId": "habitat-monitor",
+      "name": "Agente monitor del negocio (CU21)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_MONITOR_CLIENT_SECRET}",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
     }
   ],
   "users": [
@@ -218,6 +229,18 @@
         "ADMIN"
       ],
       "attributes": {}
+    },
+    {
+      "username": "service-account-habitat-monitor",
+      "enabled": true,
+      "email": "monitor@habitat.pro",
+      "emailVerified": true,
+      "firstName": "Agente",
+      "lastName": "Monitor",
+      "serviceAccountClientId": "habitat-monitor",
+      "realmRoles": [
+        "ADMIN"
+      ]
     }
   ],
   "components": {

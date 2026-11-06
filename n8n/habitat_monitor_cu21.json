@@ -1,0 +1,111 @@
+{
+  "name": "Habitat Pro - CU21 Agente monitor del negocio",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cu21-schedule",
+      "name": "Cada mañana 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.HABITAT_API_URL }}/ai/monitor/scheduled",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "cu21-run-monitor",
+      "name": "Pedir revisión al agente (gateway)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Habitat Gateway Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "habitat-monitor-alertas",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "cu21-webhook",
+      "name": "Alertas del monitor (gateway)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 420],
+      "webhookId": "habitat-monitor-alertas",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Habitat Gateway Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "body.chats",
+        "options": {}
+      },
+      "id": "cu21-split",
+      "name": "Un mensaje por destinatario",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [500, 420]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $('Alertas del monitor (gateway)').item.json.body.texto }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "cu21-telegram",
+      "name": "Enviar alertas por Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [760, 420],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Habitat Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cada mañana 08:00": {
+      "main": [[{ "node": "Pedir revisión al agente (gateway)", "type": "main", "index": 0 }]]
+    },
+    "Alertas del monitor (gateway)": {
+      "main": [[{ "node": "Un mensaje por destinatario", "type": "main", "index": 0 }]]
+    },
+    "Un mensaje por destinatario": {
+      "main": [[{ "node": "Enviar alertas por Telegram", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/La_Paz"
+  }
+}

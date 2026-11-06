@@ -507,6 +507,30 @@ mutation IniciarReserva {
 }
 ```
 
+### 7.3.1. Arquitectura interna de cada microservicio
+
+Cada microservicio usa un estilo distinto. Los tres refactors son internos: rutas, JSON y datos no cambiaron. Se verificó con `tests/api-snapshot.js`, que dio 31 de 31 respuestas idénticas antes y después. En el portal, el modo demo (`?demo=1`) tiene el botón **"Arquitectura"**, que muestra esta información en vivo (`GET /api/architecture`).
+
+| Servicio | Estilo | Dónde mirar | Idea central |
+|---|---|---|---|
+| ms-properties (NestJS + MongoDB) | **DDD** | `src/properties/domain/` | Agregado raíz `Property`: solo un inmueble DISPONIBLE se bloquea para reservar. Value objects `Money` y `GeoLocation`. Eventos de dominio. El repositorio es una interfaz del dominio, implementada en `infrastructure/`. |
+| ms-contracts (Spring Boot + PostgreSQL) | **Hexagonal** | `contract/` | `domain/ContractRules` sin Spring ni JPA. Puertos de entrada (5 casos de uso) y de salida (`ContractRepositoryPort`). Adaptadores REST (`adapter/in/web`) y JPA (`adapter/out/persistence`). |
+| ms-billing (PHP + DynamoDB) | **Clean Architecture** | `src/Domain`, `src/Application`, `src/Infrastructure`, `src/Controllers` | Entidades (`BillingRules`) ← casos de uso (`ChargeArras`, `RefundCharge`…) ← puerto `BillingRepository` ← `DynamoBillingRepository`. Los controladores son adaptadores de interfaz. |
+| api-gateway (Node) | **Saga orquestada + CQRS + idempotencia** | `server.js`, `bi/`, `idempotency/` | Orquesta la reserva entre las 3 bases con compensaciones, junta las lecturas en un modelo consolidado y deduplica los reintentos. |
+
+### 7.4. Modelo de lectura consolidado (lado de lectura de CQRS)
+
+Las escrituras siguen yendo a cada microservicio por separado: comandos con su propia base, coordinados por la saga. Para leer el negocio completo existe un **modelo de lectura** en el gateway: `GET /api/bi/overview` (`bi/read-model.js`).
+
+- **Cómo funciona:**
+  - Consulta en paralelo los 3 microservicios: inmuebles y consultas (MongoDB), visitas y contratos (PostgreSQL), cobros, reservas y comisiones (DynamoDB).
+  - Los cruza en un solo resumen: indicadores, embudo comercial, ingresos por mes, cartera, agentes y pendientes.
+  - Guarda el resultado en memoria 60 s. Cualquier comando que termine bien lo invalida.
+- **Quién lo usa:**
+  - El dashboard BI (CU19).
+  - La herramienta MCP `resumen_negocio`, que usan los reportes con IA (CU20) y el agente monitor (CU21). Así Claude obtiene los cruces ya calculados en una llamada, en lugar de sumarlos por su cuenta.
+- **Por qué no es una tabla aparte:** no hace falta otra base ni sincronización. Si el volumen creciera, el mismo `buildOverview` podría alimentar una tabla materializada que n8n refresque.
+
 ---
 
 ## 8. INICIO DE SESIÓN ÚNICO (SSO) CON KEYCLOAK / OIDC

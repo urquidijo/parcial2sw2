@@ -8,6 +8,9 @@ RUN npm install --omit=dev && npm cache clean --force
 
 COPY server.js ./
 COPY ai ./ai
+COPY bi ./bi
+COPY idempotency ./idempotency
+COPY push ./push
 COPY mfe-shell ./mfe-shell
 COPY mfe-properties-react ./mfe-properties-react
 COPY mfe-contracts-angular ./mfe-contracts-angular

@@ -1,9 +1,14 @@
-import { Injectable, NotFoundException, ConflictException, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Inject, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Property, PropertyDocument, PropertyStatus, PropertyType } from './schemas/property.schema';
 import { CreatePropertyDto, UpdatePropertyDto, ReserveLockDto, GeoSearchDto } from './dto/property.dto';
 import { AuthUser } from '../auth/auth-user';
+import { Property as PropertyAggregate } from './domain/property.aggregate';
+import { PROPERTY_REPOSITORY, PropertyRepository } from './domain/property.repository';
+import { DomainError, InvalidValueError, PropertyNotAvailableError } from './domain/domain-errors';
+import { GeoLocation, Money } from './domain/value-objects';
+import { DomainEvent } from './domain/domain-events';
 
 const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
 
@@ -14,6 +19,9 @@ export class PropertiesService implements OnModuleInit {
   constructor(
     @InjectModel(Property.name)
     private readonly propertyModel: Model<PropertyDocument>,
+    // DDD: el ciclo de reserva se maneja con el agregado Property a través de su repositorio.
+    @Inject(PROPERTY_REPOSITORY)
+    private readonly repository: PropertyRepository,
   ) {}
 
   async onModuleInit() {
@@ -26,6 +34,7 @@ export class PropertiesService implements OnModuleInit {
       throw new ConflictException(`Ya existe una propiedad con el código ${code}`);
     }
 
+    this.validateValues(dto);
     const { latitude, longitude, ...fields } = dto;
     const photos = dto.photos ?? [];
     const created = await new this.propertyModel({
@@ -44,6 +53,7 @@ export class PropertiesService implements OnModuleInit {
   }
 
   async update(id: string, dto: UpdatePropertyDto): Promise<any> {
+    this.validateValues(dto);
     const property: any = await this.findDocument(id);
     const { latitude, longitude, ...fields } = dto;
     property.set(fields);
@@ -85,10 +95,21 @@ export class PropertiesService implements OnModuleInit {
     return property;
   }
 
+  // DDD: la ubicación es el value object GeoLocation (valida rangos y produce el GeoJSON de MongoDB).
   private toLocation(latitude?: number, longitude?: number) {
-    return latitude !== undefined && longitude !== undefined
-      ? { type: 'Point', coordinates: [longitude, latitude] }
-      : undefined;
+    return GeoLocation.optional(latitude, longitude)?.toGeoJson();
+  }
+
+  // DDD: precio, arras y coordenadas pasan por sus value objects; un valor imposible es un 400.
+  private validateValues(dto: { price?: number; deposit?: number; currency?: string; latitude?: number; longitude?: number }) {
+    try {
+      if (dto.price !== undefined) Money.of(dto.price, dto.currency || 'USD');
+      if (dto.deposit !== undefined) Money.of(dto.deposit, dto.currency || 'USD');
+      GeoLocation.optional(dto.latitude, dto.longitude);
+    } catch (err) {
+      if (err instanceof InvalidValueError) throw new BadRequestException(err.message);
+      throw err;
+    }
   }
 
   async findByCode(code: string): Promise<any> {
@@ -116,36 +137,21 @@ export class PropertiesService implements OnModuleInit {
     return docs.map(d => this.formatPropertyResponse(d));
   }
 
+  // ---------------------------------------------------------------------------
+  // Ciclo de reserva (saga): DDD. La aplicación carga el agregado, ejecuta la regla de negocio,
+  // lo guarda con el repositorio y publica los eventos de dominio.
+  // ---------------------------------------------------------------------------
+
   // PASO 1 SAGA: Bloqueo preventivo de la propiedad
   async reserveLock(id: string, lockDto: ReserveLockDto): Promise<{ success: boolean; property: any; message: string }> {
     this.logger.log(`[SAGA STEP 1] Bloqueando preventivamente propiedad #${id} para cliente ${lockDto.clientId}`);
-
-    let property: any = null;
-    if (id.match(/^[0-9a-fA-F]{24}$/)) {
-      property = await this.propertyModel.findById(id).exec();
-    }
-    if (!property) {
-      property = await this.propertyModel.findOne({ code: id }).exec();
-    }
-    if (!property) {
-      throw new NotFoundException(`Propiedad #${id} no existe`);
-    }
-
-    if (property.status !== PropertyStatus.DISPONIBLE) {
-      throw new ConflictException(`La propiedad se encuentra en estado ${property.status} y no puede ser reservada`);
-    }
-
-    const expiresAt = new Date(Date.now() + (lockDto.lockDurationMinutes || 60) * 60 * 1000);
-    property.status = PropertyStatus.RESERVADO_PENDIENTE;
-    property.reservedByClientId = lockDto.clientId;
-    property.reservationLockExpiresAt = expiresAt;
-
-    await property.save();
+    const property = await this.loadAggregate(id, `Propiedad #${id} no existe`);
+    this.applyRule(() => property.lockForReservation(lockDto.clientId, lockDto.lockDurationMinutes || 60));
+    const saved = await this.persist(property);
     this.logger.log(`[SAGA STEP 1 ÉXITO] Propiedad #${id} bloqueada como RESERVADO_PENDIENTE`);
-
     return {
       success: true,
-      property: this.formatPropertyResponse(property),
+      property: this.formatPropertyResponse(saved),
       message: 'Propiedad bloqueada preventivamente con éxito en MongoDB.',
     };
   }
@@ -153,30 +159,13 @@ export class PropertiesService implements OnModuleInit {
   // COMPENSACIÓN SAGA: Liberación de la propiedad si falla el pago o contrato
   async releaseLock(id: string, reason?: string): Promise<{ success: boolean; property: any; message: string }> {
     this.logger.warn(`[SAGA COMPENSACIÓN STEP 1] Liberando propiedad #${id}. Razón: ${reason || 'Rollback Saga'}`);
-
-    let property: any = null;
-    if (id.match(/^[0-9a-fA-F]{24}$/)) {
-      property = await this.propertyModel.findById(id).exec();
-    }
-    if (!property) {
-      property = await this.propertyModel.findOne({ code: id }).exec();
-    }
-    if (!property) {
-      throw new NotFoundException(`Propiedad #${id} no existe`);
-    }
-
-    property.status = PropertyStatus.DISPONIBLE;
-    property.reservedByClientId = undefined;
-    property.reservedBy = undefined;
-    property.reservedPhone = undefined;
-    property.reservationLockExpiresAt = undefined;
-
-    await property.save();
+    const property = await this.loadAggregate(id, `Propiedad #${id} no existe`);
+    property.release(reason || 'Rollback Saga');
+    const saved = await this.persist(property);
     this.logger.log(`[SAGA COMPENSACIÓN ÉXITO] Propiedad #${id} liberada a DISPONIBLE`);
-
     return {
       success: true,
-      property: this.formatPropertyResponse(property),
+      property: this.formatPropertyResponse(saved),
       message: 'Compensación completada: propiedad desbloqueada a DISPONIBLE en MongoDB.',
     };
   }
@@ -184,45 +173,56 @@ export class PropertiesService implements OnModuleInit {
   // CONFIRMACIÓN SAGA: Éxito total de la reserva
   async confirmReserved(id: string, buyerName?: string, buyerPhone?: string): Promise<{ success: boolean; property: any; message: string }> {
     this.logger.log(`[SAGA CONFIRMACIÓN] Confirmando reserva formal para propiedad #${id}`);
-
-    let property: any = null;
-    if (id.match(/^[0-9a-fA-F]{24}$/)) {
-      property = await this.propertyModel.findById(id).exec();
-    }
-    if (!property) {
-      property = await this.propertyModel.findOne({ code: id }).exec();
-    }
-    if (!property) {
-      throw new NotFoundException(`Propiedad #${id} no existe`);
-    }
-
-    property.status = PropertyStatus.RESERVADO;
-    if (buyerName) property.reservedBy = buyerName;
-    if (buyerPhone) property.reservedPhone = buyerPhone;
-
-    await property.save();
+    const property = await this.loadAggregate(id, `Propiedad #${id} no existe`);
+    property.confirmReservation(buyerName, buyerPhone);
+    const saved = await this.persist(property);
     return {
       success: true,
-      property: this.formatPropertyResponse(property),
+      property: this.formatPropertyResponse(saved),
       message: 'Reserva confirmada en MongoDB Atlas.',
     };
   }
 
-  // Actualización de estado general
+  // Actualización de estado general (cierre de venta o alquiler, reapertura)
   async updateStatus(id: string, status: string, buyerName?: string): Promise<any> {
-    const property: any = await this.findDocument(id);
-
-    property.status = status;
-    if (buyerName !== undefined) property.reservedBy = buyerName;
-    if (status === 'DISPONIBLE') {
-      property.reservedBy = undefined;
-      property.reservedByClientId = undefined;
-      property.reservationLockExpiresAt = undefined;
-    }
-
-    await property.save();
-    return this.formatPropertyResponse(property);
+    const property = await this.loadAggregate(id, `Propiedad #${id} no encontrada`);
+    property.changeStatus(status, buyerName);
+    return this.formatPropertyResponse(await this.persist(property));
   }
+
+  private async loadAggregate(id: string, notFoundMessage: string): Promise<PropertyAggregate> {
+    const property = await this.repository.findByIdOrCode(id);
+    if (!property) throw new NotFoundException(notFoundMessage);
+    return property;
+  }
+
+  // Traduce las reglas de negocio violadas (dominio) a respuestas HTTP (aplicación).
+  private applyRule(rule: () => void): void {
+    try {
+      rule();
+    } catch (err) {
+      if (err instanceof PropertyNotAvailableError) throw new ConflictException(err.message);
+      if (err instanceof DomainError) throw new BadRequestException(err.message);
+      throw err;
+    }
+  }
+
+  private async persist(property: PropertyAggregate): Promise<any> {
+    const saved = await this.repository.save(property);
+    this.publish(property.pullEvents());
+    return saved;
+  }
+
+  // Publicación de eventos de dominio: al log y a un historial en memoria (lo muestra el modo demo).
+  private publish(events: DomainEvent[]): void {
+    for (const e of events) {
+      this.logger.log(`[EVENTO DE DOMINIO] ${e.name} · ${e.propertyCode} ${JSON.stringify(e.data)}`);
+      PropertiesService.recentEvents.unshift({ name: e.name, propertyCode: e.propertyCode, occurredAt: e.occurredAt.toISOString(), data: e.data });
+    }
+    PropertiesService.recentEvents.splice(20);
+  }
+
+  static readonly recentEvents: Array<{ name: string; propertyCode: string; occurredAt: string; data: Record<string, unknown> }> = [];
 
   // Restablecer una propiedad a DISPONIBLE
   async resetProperty(id: string): Promise<any> {

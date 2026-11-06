@@ -2,54 +2,22 @@
 
 namespace PropTech\Billing\Controllers;
 
-use PropTech\Billing\Http\ApiException;
+use PropTech\Billing\Application\UseCase\ManageCommissions;
 use PropTech\Billing\Http\AuthContext;
-use PropTech\Billing\Services\DynamoException;
+use PropTech\Billing\Infrastructure\DynamoBillingRepository;
 use PropTech\Billing\Services\DynamoStorageService;
 
+/** CLEAN — Adaptador de interfaz para las comisiones (CU17 / CU18). Mismas respuestas que antes del refactor. */
 class CommissionController {
-    private DynamoStorageService $storage;
+    private ManageCommissions $commissions;
 
     public function __construct() {
-        $this->storage = new DynamoStorageService();
+        $this->commissions = new ManageCommissions(new DynamoBillingRepository(new DynamoStorageService()));
     }
 
-    /**
-     * Genera la comisión de un agente al cerrarse una operación: tasa sobre el monto base y 13% de retención.
-     * Un commissionId por contrato: generarla dos veces devuelve 409.
-     */
+    /** Genera la comisión de un agente al cerrarse una operación (tasa sobre el monto base y 13 % de retención). */
     public function calculate(array $input): array {
-        $agentId = trim((string) ($input['agentId'] ?? ''));
-        $baseAmount = (float) ($input['baseAmount'] ?? $input['propertyPrice'] ?? 0);
-        $rate = isset($input['rate']) ? (float) $input['rate'] : 0.03;
-        $commissionId = strtoupper(trim((string) ($input['commissionId'] ?? '')))
-            ?: 'COM-' . strtoupper(bin2hex(random_bytes(4)));
-
-        if ($agentId === '' || $baseAmount <= 0) {
-            throw ApiException::badRequest('agentId y un monto base mayor a 0 son obligatorios');
-        }
-        if ($rate <= 0 || $rate > 1) {
-            throw ApiException::badRequest('La tasa de comisión debe estar entre 0 y 1');
-        }
-        if (!preg_match('/^COM-[A-Z0-9-]{3,60}$/', $commissionId)) {
-            throw ApiException::badRequest('commissionId inválido');
-        }
-
-        $saved = $this->storage->saveCommission([
-            'commissionId' => $commissionId,
-            'agentId' => $agentId,
-            'agentName' => (string) ($input['agentName'] ?? ''),
-            'agentEmail' => (string) ($input['agentEmail'] ?? ''),
-            'propertyId' => (string) ($input['propertyId'] ?? ''),
-            'contractNumber' => (string) ($input['contractNumber'] ?? ''),
-            'operationType' => strtoupper((string) ($input['operationType'] ?? 'VENTA')),
-            'baseAmount' => $baseAmount,
-            'rate' => $rate,
-        ]);
-        if ($saved === null) {
-            throw ApiException::conflict("La comisión {$commissionId} ya fue generada");
-        }
-
+        $saved = BillingController::run(fn () => $this->commissions->generate($input));
         http_response_code(201);
         return [
             'success' => true,
@@ -60,56 +28,29 @@ class CommissionController {
 
     // CU17: todas las comisiones, para que el Cajero las liquide.
     public function listAll(): array {
-        $list = $this->storage->listCommissions();
-        return ['success' => true, 'count' => count($list), 'data' => $list, 'totals' => self::totals($list)];
+        $r = $this->commissions->listAll();
+        return ['success' => true, 'count' => count($r['list']), 'data' => $r['list'], 'totals' => $r['totals']];
     }
 
     // CU17: el Cajero paga la comisión (PENDIENTE_PAGO → PAGADA).
     public function pay(string $agentId, string $commissionId, array $input): array {
-        $reference = mb_substr(trim((string) ($input['reference'] ?? '')), 0, 100);
-        try {
-            $paid = $this->storage->payCommission($agentId, $commissionId, AuthContext::name(), $reference);
-        } catch (DynamoException $e) {
-            if ($e->isConditionalFailure()) {
-                throw ApiException::conflict("La comisión {$commissionId} ya fue pagada");
-            }
-            throw $e;
-        }
-        if ($paid === null) {
-            throw ApiException::notFound("No existe la comisión {$commissionId} del agente {$agentId}");
-        }
+        $paid = BillingController::run(fn () => $this->commissions->pay($agentId, $commissionId, AuthContext::name(), (string) ($input['reference'] ?? '')));
         return ['success' => true, 'message' => "Comisión {$commissionId} liquidada", 'data' => $paid];
     }
 
-    /**
-     * CU18: comisiones de un agente. Un AGENTE solo ve las que están a su nombre (email del token);
-     * el Cajero y el Admin ven las de cualquiera.
-     */
+    /** CU18: comisiones de un agente (un AGENTE solo ve las suyas). */
     public function getAgentBalance(string $agentId): array {
-        $list = $this->storage->getAgentCommissions($agentId);
-        if (AuthContext::role() === 'AGENTE') {
-            $email = AuthContext::email();
-            $list = array_values(array_filter($list, fn ($c) => $c['agentEmail'] !== null && $c['agentEmail'] === $email));
-        }
-        $totals = self::totals($list);
+        $r = $this->commissions->ofAgent($agentId, AuthContext::role(), AuthContext::email());
         return [
             'success' => true,
             'data' => [
                 'agentId' => $agentId,
-                'totalBalanceUSD' => $totals['net'],
-                'pendingUSD' => $totals['pending'],
-                'paidUSD' => $totals['paid'],
-                'count' => count($list),
-                'commissions' => $list
+                'totalBalanceUSD' => $r['totals']['net'],
+                'pendingUSD' => $r['totals']['pending'],
+                'paidUSD' => $r['totals']['paid'],
+                'count' => count($r['list']),
+                'commissions' => $r['list']
             ]
         ];
-    }
-
-    private static function totals(array $list): array {
-        $sum = fn (?string $status) => round(array_sum(array_map(
-            fn ($c) => $c['netAmount'],
-            array_filter($list, fn ($c) => $status === null || $c['status'] === $status)
-        )), 2);
-        return ['net' => $sum(null), 'pending' => $sum('PENDIENTE_PAGO'), 'paid' => $sum('PAGADA')];
     }
 }

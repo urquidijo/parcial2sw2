@@ -22,6 +22,7 @@
   const DELIVERY_TYPES = { ENTREGA_INMEDIATA: 'Entrega inmediata', PREVENTA: 'Preventa', EN_CONSTRUCCION: 'En construcción' };
 
   const money = (value) => `$${Number(value || 0).toLocaleString()} USD`;
+  const DATE_TIME = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
   const formatDistance = (meters) => (meters < 1000 ? `a ${meters} m` : `a ${(meters / 1000).toFixed(1)} km`);
   const getUser = () => (window.HabitatAuth ? window.HabitatAuth.getUser() : null);
   const notify = (msg) => (typeof window.showToast === 'function' ? window.showToast(msg) : alert(msg));
@@ -38,9 +39,15 @@
   }
   const withIcon = (name, label, size) => e(React.Fragment, null, e(Icon, { name, size }), label);
 
+  // Raíz desde donde se sirve este microfrontend (local: /mfe/properties/; producción: su dominio de Vercel).
+  const MFE_BASE = (() => {
+    try { return new URL('..', document.currentScript.src).href; } catch (_) { return `${window.location.origin}/mfe/properties/`; }
+  })();
+
   function statusInfo(status) {
     if (status === 'DISPONIBLE') return { cls: 'status-disponible', label: 'Disponible' };
     if (status && status.startsWith('RESERVADO')) return { cls: 'status-reservado', label: 'Reservado (48 h)' };
+    if (status === 'ALQUILADO') return { cls: 'status-alquilado', label: 'Alquilado' };
     return { cls: 'status-comprado', label: 'Vendido' };
   }
 
@@ -213,11 +220,12 @@
       setSending(true);
       setError('');
       try {
-        await apiRequest(baseApi, `/properties/${encodeURIComponent(property.code)}/inquiries`, {
+        const result = await apiRequest(baseApi, `/properties/${encodeURIComponent(property.code)}/inquiries`, {
           method: 'POST',
           body: { message, phone: phone || undefined },
         });
-        setSent(true);
+        // Sin conexión el shell la guarda en la cola y la envía al volver la red (CU22).
+        setSent(result && result.queued ? 'queued' : true);
         setMessage('');
       } catch (err) {
         setError(err.message);
@@ -227,8 +235,10 @@
     };
 
     if (sent) {
-      return e('div', { className: 'notice' }, e(Icon, { name: 'CircleCheck' }),
-        e('div', null, 'Consulta enviada. Verás la respuesta del asesor en "Mis consultas".'));
+      return e('div', { className: sent === 'queued' ? 'notice warn' : 'notice' }, e(Icon, { name: sent === 'queued' ? 'CloudOff' : 'CircleCheck' }),
+        e('div', null, sent === 'queued'
+          ? 'Estás sin conexión: tu consulta quedó guardada y se enviará sola al volver la señal.'
+          : 'Consulta enviada. Verás la respuesta del asesor en "Mis consultas".'));
     }
 
     return e('form', { onSubmit: submit, style: { display: 'flex', flexDirection: 'column', gap: '0.6rem', background: '#fafafa', border: '1px solid var(--border)', borderRadius: 6, padding: '0.9rem' } },
@@ -370,9 +380,205 @@
     };
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // CU04: autocompletar la ficha desde fotos con IA LOCAL (Deep Learning en el navegador).
+  // TensorFlow.js + COCO-SSD (detector de 80 tipos de objetos). Las fotos no salen del dispositivo.
+  // El modelo está cuantizado a 8 bits (17 MB → 4,8 MB, ver tools/quantize-model.js) y se sirve desde
+  // este mismo microfrontend; la librería y el modelo se descargan solo cuando el agente usa la función.
+  // ---------------------------------------------------------------------------------------------
+  const TFJS_URL = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js';
+  const COCO_SSD_URL = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js';
+  const COCO_MODEL_URL = new URL('models/coco-ssd-lite-uint8/model.json', MFE_BASE).href;
+  const MIN_SCORE = 0.5;
+  const OBJECT_LABELS = {
+    bed: 'cama', toilet: 'inodoro', sink: 'lavamanos', oven: 'horno', microwave: 'microondas', refrigerator: 'refrigerador',
+    toaster: 'tostadora', couch: 'sofá', tv: 'televisor', 'dining table': 'mesa de comedor', chair: 'silla', car: 'auto',
+    'potted plant': 'planta', bench: 'banco', vase: 'florero', laptop: 'computadora', clock: 'reloj', book: 'libro',
+    bicycle: 'bicicleta', person: 'persona', motorcycle: 'moto', 'wine glass': 'copa', cup: 'taza', bowl: 'bol',
+  };
+  let detectorPromise = null;
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) return resolve();
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('No se pudo descargar la librería de IA. Revisa tu conexión.'));
+      document.head.appendChild(script);
+    });
+  }
+
+  function loadDetector() {
+    if (!detectorPromise) {
+      detectorPromise = loadScript(TFJS_URL)
+        .then(() => loadScript(COCO_SSD_URL))
+        .then(() => window.cocoSsd.load({ base: 'lite_mobilenet_v2', modelUrl: COCO_MODEL_URL }))
+        .catch((err) => { detectorPromise = null; throw err; });
+    }
+    return detectorPromise;
+  }
+
+  function fileToImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(`No se pudo leer la imagen ${file.name}`));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  // Sugerencias a partir de lo detectado: un dormitorio por foto con cama y un baño por foto con inodoro
+  // (así un reflejo o dos inodoros en la misma foto no suman de más); parqueos = máximo de autos en una foto.
+  function suggestionsFrom(results) {
+    const photosWith = (cls) => results.filter((r) => r.detections.some((d) => d.class === cls)).length;
+    const maxIn = (cls) => Math.max(0, ...results.map((r) => r.detections.filter((d) => d.class === cls).length));
+    const any = (...classes) => results.some((r) => r.detections.some((d) => classes.includes(d.class)));
+    const list = [];
+    if (photosWith('bed')) list.push({ key: 'rooms', label: `Dormitorios: ${photosWith('bed')}`, field: 'rooms', value: String(photosWith('bed')) });
+    if (photosWith('toilet')) list.push({ key: 'bathrooms', label: `Baños: ${photosWith('toilet')}`, field: 'bathrooms', value: String(photosWith('toilet')) });
+    if (maxIn('car')) list.push({ key: 'parking', label: `Parqueos: ${maxIn('car')}`, field: 'parkingSlots', value: String(maxIn('car')) });
+    if (any('oven', 'microwave', 'refrigerator', 'toaster')) list.push({ key: 'kitchen', label: 'Comodidad: Cocina equipada', amenity: 'Cocina equipada' });
+    if (any('couch', 'dining table', 'tv', 'bed')) list.push({ key: 'furnished', label: 'Comodidad: Amoblado', amenity: 'Amoblado' });
+    return list;
+  }
+
+  // Foto con los recuadros de lo detectado.
+  function DetectionPreview({ result }) {
+    const canvasRef = React.useRef(null);
+    React.useEffect(() => {
+      const canvas = canvasRef.current;
+      const { img, detections } = result;
+      const scale = Math.min(1, 320 / img.naturalWidth);
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.lineWidth = 2;
+      ctx.font = '600 12px "Plus Jakarta Sans", sans-serif';
+      for (const d of detections) {
+        const [x, y, w, h] = d.bbox.map((v) => v * scale);
+        const text = `${OBJECT_LABELS[d.class] || d.class} ${Math.round(d.score * 100)}%`;
+        ctx.strokeStyle = '#1d4ed8';
+        ctx.strokeRect(x, y, w, h);
+        ctx.fillStyle = '#1d4ed8';
+        ctx.fillRect(x, Math.max(0, y - 18), ctx.measureText(text).width + 8, 18);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(text, x + 4, Math.max(12, y - 5));
+      }
+    }, [result]);
+    return e('figure', { style: { margin: 0, display: 'flex', flexDirection: 'column', gap: '0.25rem' } },
+      e('canvas', { ref: canvasRef, style: { width: '100%', borderRadius: 6, border: '1px solid var(--border)' } }),
+      e('figcaption', { className: 'hint' }, result.detections.length
+        ? result.detections.map((d) => OBJECT_LABELS[d.class] || d.class).join(', ')
+        : 'No se detectaron objetos conocidos'));
+  }
+
+  function PhotoAutofill({ onApply }) {
+    const [status, setStatus] = React.useState('idle'); // idle | loading | analyzing | done
+    const [error, setError] = React.useState('');
+    const [results, setResults] = React.useState([]);
+    const [selected, setSelected] = React.useState({});
+    const [elapsed, setElapsed] = React.useState(0);
+    const suggestions = suggestionsFrom(results);
+
+    const analyze = async (fileList) => {
+      const files = Array.from(fileList || []).filter((f) => f.type.startsWith('image/')).slice(0, 12);
+      if (!files.length) return;
+      setError('');
+      setResults([]);
+      try {
+        setStatus('loading');
+        const model = await loadDetector();
+        setStatus('analyzing');
+        const t0 = performance.now();
+        const out = [];
+        for (const file of files) {
+          const img = await fileToImage(file);
+          const detections = await model.detect(img, 20, MIN_SCORE);
+          out.push({ name: file.name, img, detections });
+          setResults([...out]);
+        }
+        setElapsed(Math.round(performance.now() - t0));
+        setSelected(Object.fromEntries(suggestionsFrom(out).map((s) => [s.key, true])));
+        setStatus('done');
+      } catch (err) {
+        setError(err.message);
+        setStatus('idle');
+      }
+    };
+
+    const busy = status === 'loading' || status === 'analyzing';
+    return e('div', { style: { border: '1px dashed var(--border-strong)', borderRadius: 8, padding: '0.85rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem', background: '#fafafa' } },
+      e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' } },
+        e('div', null,
+          e('strong', { style: { fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' } }, withIcon('ScanSearch', 'Autocompletar desde fotos', 16)),
+          e('div', { className: 'hint' }, 'La IA reconoce camas, baños, cocina, muebles y autos en tus fotos y sugiere datos. Las fotos no salen de tu dispositivo.')),
+        e('label', { className: 'btn btn-secondary', style: { cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 } },
+          withIcon('ImagePlus', busy ? 'Analizando…' : 'Elegir fotos', 14),
+          e('input', { type: 'file', accept: 'image/*', multiple: true, disabled: busy, style: { display: 'none' }, onChange: (ev) => { analyze(ev.target.files); ev.target.value = ''; } }))),
+      status === 'loading' ? e('div', { className: 'hint' }, 'Descargando el modelo de IA (≈5 MB, solo la primera vez)…') : null,
+      status === 'analyzing' ? e('div', { className: 'hint' }, `Analizando foto ${results.length + 1}…`) : null,
+      error ? e('div', { className: 'notice error' }, error) : null,
+      results.length
+        ? e('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.6rem' } },
+            results.map((r, i) => e(DetectionPreview, { key: r.name + i, result: r })))
+        : null,
+      status === 'done'
+        ? e('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.4rem' } },
+            suggestions.length
+              ? e(React.Fragment, null,
+                  e('div', { style: { fontSize: '0.84rem', fontWeight: 600 } }, 'Sugerencias (revísalas antes de aplicar)'),
+                  suggestions.map((s) => e('label', { key: s.key, style: { display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84rem' } },
+                    e('input', { type: 'checkbox', checked: !!selected[s.key], onChange: (ev) => setSelected({ ...selected, [s.key]: ev.target.checked }) }),
+                    s.label)),
+                  e('div', { style: { display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' } },
+                    e('button', { type: 'button', className: 'btn', onClick: () => onApply(suggestions.filter((s) => selected[s.key])) }, 'Aplicar sugerencias'),
+                    e('span', { className: 'hint' }, `${results.length} foto(s) analizadas en ${(elapsed / 1000).toFixed(1)} s`)))
+              : e('div', { className: 'hint' }, 'No se encontró nada para sugerir. Prueba con fotos de dormitorios, baños o la cocina.'),
+            e('span', { className: 'demo-only demo-tag' }, 'TensorFlow.js · COCO-SSD lite (cuantizado 8 bits) · corre en el navegador'))
+        : null
+    );
+  }
+
+  // Lista desplegable con opción "Otra…" que abre un campo de texto (ciudad y zona del inmueble).
+  const OTHER = '__otra__';
+  function ChoiceOrText({ label, value, options, onChange, placeholder }) {
+    const [other, setOther] = React.useState(false);
+    React.useEffect(() => {
+      // Un valor que no está en la lista (inmueble antiguo o ciudad nueva) se muestra como "Otra…"
+      setOther(options.length > 0 && Boolean(value) && !options.includes(value));
+    }, [options.join('|')]);
+    const showSelect = options.length > 0;
+    const showInput = !showSelect || other;
+    return e('div', { className: 'form-group' },
+      e('label', null, label),
+      showSelect
+        ? e('select', {
+            className: 'form-control', required: !other, value: other ? OTHER : value,
+            onChange: (ev) => {
+              if (ev.target.value === OTHER) { setOther(true); onChange(''); } else { setOther(false); onChange(ev.target.value); }
+            },
+          },
+            e('option', { value: '' }, 'Selecciona…'),
+            options.map((o) => e('option', { key: o, value: o }, o)),
+            e('option', { value: OTHER }, 'Otra…'))
+        : null,
+      showInput
+        ? e('input', { className: 'form-control', required: true, maxLength: 60, value, placeholder, autoFocus: other, onChange: (ev) => onChange(ev.target.value) })
+        : null,
+      other ? e('span', { className: 'hint' }, 'No está en la lista: el precio estimado usará el promedio de la ciudad.') : null
+    );
+  }
+
   function PropertyForm({ baseApi, property, onClose, onSaved }) {
     const isEdit = !!property;
     const [form, setForm] = React.useState(() => toFormState(property));
+    // Ciudades y zonas que conoce el modelo de precios (ms-ml-python); si no responde, quedan campos de texto.
+    const [locations, setLocations] = React.useState({});
+    React.useEffect(() => {
+      apiRequest(baseApi, '/ml/locations').then((data) => setLocations(data.ciudades || {})).catch(() => setLocations({}));
+    }, [baseApi]);
     const [saving, setSaving] = React.useState(false);
     const [error, setError] = React.useState('');
     const [locating, setLocating] = React.useState(false);
@@ -416,6 +622,21 @@
       setForm((f) => ({ ...f, [field]: val }));
     };
     const pickLocation = (lat, lng) => setForm((f) => ({ ...f, latitude: lat.toFixed(6), longitude: lng.toFixed(6) }));
+
+    // CU04: aplica al formulario las sugerencias que el agente marcó (campos numéricos y comodidades).
+    const applyPhotoSuggestions = (items) => {
+      setForm((f) => {
+        const next = { ...f };
+        const amenities = f.amenities.split(',').map((s) => s.trim()).filter(Boolean);
+        for (const item of items) {
+          if (item.field) next[item.field] = item.value;
+          if (item.amenity && !amenities.some((a) => a.toLowerCase() === item.amenity.toLowerCase())) amenities.push(item.amenity);
+        }
+        next.amenities = amenities.join(', ');
+        return next;
+      });
+      notify(items.length ? 'Sugerencias aplicadas al formulario. Revisa los datos antes de guardar.' : 'No marcaste ninguna sugerencia.');
+    };
 
     const useMyLocation = () => {
       if (!navigator.geolocation) { setError('Tu navegador no permite obtener la ubicación.'); return; }
@@ -465,6 +686,7 @@
         e('div', { className: 'form-group' },
           e('label', null, 'Descripción'),
           e('textarea', { className: 'form-control', rows: 3, maxLength: 2000, value: form.description, onChange: set('description') })),
+        e(PhotoAutofill, { onApply: applyPhotoSuggestions }),
         row(
           field('Precio (USD) *', 'price', { type: 'number', min: 1, step: 'any', required: true }),
           field('Arras (USD)', 'deposit', { type: 'number', min: 0, step: 'any' }),
@@ -492,8 +714,14 @@
           field('Parqueos', 'parkingSlots', { type: 'number', min: 0, step: 1 })
         ),
         row(
-          field('Ciudad *', 'city', { required: true, placeholder: 'Santa Cruz' }),
-          field('Zona *', 'zone', { required: true, placeholder: 'Equipetrol' })
+          e(ChoiceOrText, {
+            label: 'Ciudad *', value: form.city, options: Object.keys(locations), placeholder: 'Escribe la ciudad',
+            onChange: (city) => setForm((f) => ({ ...f, city, zone: (locations[city] || []).includes(f.zone) ? f.zone : '' })),
+          }),
+          e(ChoiceOrText, {
+            label: 'Zona *', value: form.zone, options: locations[form.city] || [], placeholder: 'Escribe la zona o barrio',
+            onChange: (zone) => setForm((f) => ({ ...f, zone })),
+          })
         ),
         field('Dirección', 'address', { maxLength: 200, placeholder: 'Calle, número, edificio' }),
         e('div', { className: 'form-group' },
@@ -569,8 +797,8 @@
         ),
         canAnswer
           ? e('div', { style: { fontSize: '0.8rem', color: 'var(--text-muted)' } },
-              `${q.clientName}${q.clientEmail ? ' · ' + q.clientEmail : ''}${q.clientPhone ? ' · ' + q.clientPhone : ''} · ${new Date(q.createdAt).toLocaleString()}`)
-          : e('div', { style: { fontSize: '0.8rem', color: 'var(--text-muted)' } }, new Date(q.createdAt).toLocaleString()),
+              `${q.clientName}${q.clientEmail ? ' · ' + q.clientEmail : ''}${q.clientPhone ? ' · ' + q.clientPhone : ''} · ${new Date(q.createdAt).toLocaleString('es-BO', DATE_TIME)}`)
+          : e('div', { style: { fontSize: '0.8rem', color: 'var(--text-muted)' } }, new Date(q.createdAt).toLocaleString('es-BO', DATE_TIME)),
         e('div', { style: { fontSize: '0.88rem' } }, q.message),
         q.answer
           ? e('div', { style: { background: '#fafafa', border: '1px solid var(--border)', borderRadius: 6, padding: '0.6rem 0.8rem', fontSize: '0.86rem' } },
@@ -705,7 +933,8 @@
                 e('option', { value: 'ALL' }, 'Todos los estados'),
                 e('option', { value: 'DISPONIBLE' }, 'Disponibles'),
                 e('option', { value: 'RESERVADO' }, 'Reservados'),
-                e('option', { value: 'COMPRADO' }, 'Vendidos')
+                e('option', { value: 'COMPRADO' }, 'Vendidos'),
+                e('option', { value: 'ALQUILADO' }, 'Alquilados')
               ),
               e('select', { className: 'filter-select', value: cityFilter, onChange: (ev) => setCityFilter(ev.target.value) },
                 e('option', { value: 'ALL' }, 'Todas las ciudades'),

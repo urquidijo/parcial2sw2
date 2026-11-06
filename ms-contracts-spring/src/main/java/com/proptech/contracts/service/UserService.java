@@ -71,6 +71,45 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    // Telegram (CU21): el gateway confirma el chat con el código de /start y aquí se guarda en el perfil del usuario.
+    @Transactional
+    public User linkTelegram(Jwt jwt, String chatId) {
+        if (chatId == null || !chatId.matches("-?\\d{1,20}")) {
+            throw new IllegalArgumentException("Chat de Telegram inválido");
+        }
+        User user = currentUser(jwt);
+        // Un chat pertenece a una sola cuenta: si estaba vinculado a otra, se desvincula de ella.
+        userRepository.findByTelegramChatId(chatId)
+                .filter(other -> !other.getId().equals(user.getId()))
+                .ifPresent(other -> {
+                    other.setTelegramChatId(null);
+                    other.setTelegramAlerts(false);
+                    userRepository.save(other);
+                });
+        user.setTelegramChatId(chatId);
+        if (User.ROLE_ADMIN.equals(user.getRole())) {
+            user.setTelegramAlerts(true); // el Administrador recibe las alertas al vincularse
+        }
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public User unlinkTelegram(Jwt jwt) {
+        User user = currentUser(jwt);
+        user.setTelegramChatId(null);
+        user.setTelegramAlerts(false);
+        return userRepository.save(user);
+    }
+
+    // Destinatarios de las alertas del agente monitor: vinculados y con alertas activas.
+    @Transactional(readOnly = true)
+    public List<Map<String, String>> telegramRecipients() {
+        return userRepository.findByTelegramAlertsTrueAndTelegramChatIdIsNotNull().stream()
+                .filter(User::isActive)
+                .map(u -> Map.of("id", u.getId(), "name", u.getName(), "chatId", u.getTelegramChatId()))
+                .toList();
+    }
+
     @Transactional
     public void seedInitialUsers() {
         if (userRepository.count() > 0) return;

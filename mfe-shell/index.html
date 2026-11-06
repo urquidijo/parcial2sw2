@@ -4,6 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Habitat Pro | Plataforma Inmobiliaria Empresarial</title>
+  <!-- PWA: instalable en el celular y usable sin conexión (sw.js) -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#1d4ed8">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Habitat Pro">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -141,9 +150,17 @@
       font-size: 0.72rem;
     }
     .user-info { display: flex; flex-direction: column; }
-    .user-info .name { font-size: 0.82rem; font-weight: 600; color: var(--text-main); }
+    .user-info .name { font-size: 0.82rem; font-weight: 600; color: var(--text-main); white-space: nowrap; }
+    .brand-title h1, .brand-title span, .user-info .role { white-space: nowrap; }
+    /* Encabezado en pantallas medianas: los botones secundarios quedan solo con ícono (el nombre sale al pasar el mouse) */
+    @media (max-width: 1500px) {
+      .brand-title span { display: none; }
+      #btnInstall .btn-text, #btnArquitectura .btn-text, #btnTelegram .btn-text { display: none; }
+      .user-zone { gap: 0.5rem; }
+    }
     .user-info .role { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; }
     .btn-logout {
+      white-space: nowrap;
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -159,6 +176,27 @@
       gap: 0.4rem;
     }
     .btn-logout:hover { background: var(--rose-light); color: var(--rose); border-color: #fecdd3; }
+
+    /* Campanita: alertas del agente monitor (CU21) */
+    .bell-wrap { position: relative; }
+    .bell-btn { background: none; border: 1px solid transparent; border-radius: 6px; padding: 0.4rem; cursor: pointer; color: var(--text-muted); display: inline-flex; position: relative; }
+    .bell-btn:hover, .bell-btn.open { background: var(--bg-alt); color: var(--text-main); }
+    .bell-badge { position: absolute; top: -2px; right: -2px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: var(--rose); color: #fff; font-size: 0.66rem; font-weight: 600; display: grid; place-items: center; border: 2px solid var(--bg-card); }
+    .bell-panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(400px, 92vw); max-height: 72vh; overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg); z-index: 200; }
+    .bell-head { position: sticky; top: 0; background: var(--bg-card); display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.8rem 1rem; border-bottom: 1px solid var(--border); }
+    .bell-head h3 { font-size: 0.92rem; }
+    .bell-section { padding: 0.8rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+    .bell-alert { display: flex; flex-direction: column; gap: 0.2rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
+    .bell-alert:last-child { border-bottom: none; padding-bottom: 0; }
+    .bell-alert summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; }
+    .bell-alert summary::-webkit-details-marker { display: none; }
+    .bell-alert summary .chev { margin-left: auto; color: var(--text-muted); transition: transform 0.15s; }
+    .bell-alert[open] summary .chev { transform: rotate(180deg); }
+    .bell-alert[open] > .hint, .bell-alert[open] > .action { margin-top: 0.3rem; }
+    .bell-alert .title { font-size: 0.84rem; font-weight: 600; }
+    .bell-alert .action { font-size: 0.78rem; color: var(--brand); }
+    .bell-history button { background: none; border: none; width: 100%; text-align: left; padding: 0.4rem 0.5rem; border-radius: 6px; font-family: inherit; font-size: 0.78rem; color: var(--text-muted); cursor: pointer; display: flex; justify-content: space-between; }
+    .bell-history button:hover, .bell-history button.active { background: var(--bg-alt); color: var(--text-main); }
 
     /* Contenedor de la app */
     main.app-shell {
@@ -317,6 +355,14 @@
       overflow: hidden;
     }
     .property-img img { width: 100%; height: 100%; object-fit: cover; }
+    /* La misma etiqueta de estado en la tarjeta y sobre la foto de la ficha */
+    .badge-status {
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
     .property-img .badge-status {
       position: absolute;
       top: 10px;
@@ -330,6 +376,7 @@
     .status-disponible { background: #ffffff; color: var(--text-main); border-color: var(--border) !important; }
     .status-reservado { background: var(--amber-light); color: var(--amber); border-color: #fde68a !important; }
     .status-comprado { background: var(--emerald-light); color: var(--emerald); border-color: #a7f3d0 !important; }
+    .status-alquilado { background: var(--bg-alt); color: var(--brand); border-color: #bfdbfe !important; }
 
     .delivery-pill {
       position: absolute;
@@ -536,6 +583,11 @@
       flex-direction: column;
       gap: 1rem;
     }
+    /* El modal no pasa de la altura de la pantalla: solo se desplaza su cuerpo, así el pie (botones) queda
+       siempre visible y nada (p. ej. el mapa de Leaflet) puede quedar por encima o por debajo de él. */
+    .modal-window { max-height: calc(100vh - 4rem); max-height: calc(100dvh - 4rem); }
+    .modal-window > .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+    .modal-body .leaflet-container { z-index: 0; }
     .modal-foot {
       position: sticky;
       bottom: 0;
@@ -671,9 +723,9 @@
       background: var(--bg-page);
       padding: 0 0.35rem;
     }
-    body.demo-mode mfe-properties::before { content: 'Microfrontend React 18 · REST → ms-properties (NestJS + MongoDB Atlas)'; }
-    body.demo-mode mfe-contracts::before { content: 'Microfrontend Angular 18 · GraphQL (BFF) → ms-contracts (Spring Boot + PostgreSQL)'; }
-    body.demo-mode mfe-bi::before { content: 'Microfrontend Next.js / React · REST → ms-billing (PHP + Amazon DynamoDB)'; }
+    body.demo-mode mfe-properties::before { content: 'Microfrontend React 18 · REST → ms-properties (NestJS + MongoDB Atlas) · DDD'; }
+    body.demo-mode mfe-contracts::before { content: 'Microfrontend Angular 18 · GraphQL (BFF) → ms-contracts (Spring Boot + PostgreSQL) · Hexagonal'; }
+    body.demo-mode mfe-bi::before { content: 'Microfrontend Next.js / React · REST → ms-billing (PHP + Amazon DynamoDB) · Clean Architecture'; }
     .demo-tag { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--text-muted); background: var(--bg-alt); border: 1px solid var(--border); border-radius: 4px; padding: 0.1rem 0.4rem; align-items: center; gap: 0.3rem; }
 
     @media (max-width: 900px) {
@@ -686,6 +738,108 @@
       .form-row { grid-template-columns: 1fr; }
       .properties-grid { grid-template-columns: 1fr; }
     }
+
+    /* Celular (PWA): navegación en barra inferior, modales a pantalla completa, toques de 44 px. */
+    @media (max-width: 640px) {
+      header { padding: 0.5rem 0.85rem; padding-top: max(0.5rem, env(safe-area-inset-top)); flex-wrap: nowrap; }
+      .brand-title span { display: none; }
+      .user-zone { gap: 0.4rem; }
+      .btn-logout { padding: 0.45rem 0.55rem; min-height: 36px; }
+      .btn-logout .btn-text { display: none; }
+
+      nav.main-nav {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 900;
+        order: 0; width: auto; display: flex; flex-wrap: nowrap; gap: 0; overflow-x: auto;
+        background: var(--bg-card); border-top: 1px solid var(--border);
+        padding: 0.25rem 0.25rem max(0.25rem, env(safe-area-inset-bottom));
+        scrollbar-width: none;
+      }
+      nav.main-nav::-webkit-scrollbar { display: none; }
+      nav.main-nav .nav-btn {
+        flex: 1 0 auto; min-width: 68px; min-height: 52px;
+        flex-direction: column; justify-content: center; gap: 0.15rem;
+        font-size: 0.68rem; padding: 0.3rem 0.4rem; border-radius: 8px;
+      }
+      nav.main-nav .nav-btn .icon svg { width: 20px; height: 20px; }
+      nav.main-nav .nav-btn.active { background: transparent; color: var(--brand); }
+      main.app-shell { padding: 0.85rem 0.85rem calc(76px + env(safe-area-inset-bottom)); }
+
+      .modal-backdrop { padding: 0; place-items: stretch; }
+      .modal-window { max-width: none !important; height: 100vh; height: 100dvh; max-height: none; margin: 0; border-radius: 0; border: none; }
+      .modal-foot .btn, .modal-foot .btn-secondary { min-height: 44px; flex: 1; }
+      .btn, .btn-secondary { min-height: 40px; }
+      .form-control, .filter-select, .search-input { min-height: 44px; font-size: 16px; } /* 16 px: iOS no hace zoom al escribir */
+
+      /* Filtros del catálogo: buscador a todo el ancho y filtros en dos columnas iguales */
+      .filter-bar { display: grid; grid-template-columns: 1fr 1fr; }
+      .filter-bar > * { width: 100%; min-width: 0; }
+      .filter-bar > .search-input { grid-column: 1 / -1; }
+
+      .toast-msg { left: 0.75rem; right: 0.75rem; bottom: calc(80px + env(safe-area-inset-bottom)); max-width: none; }
+      .bell-panel { position: fixed !important; left: 0.5rem !important; right: 0.5rem !important; width: auto !important; }
+    }
+
+    /* CU22 sin conexión */
+    .offline-bar { align-items: center; margin-bottom: 1rem; }
+    .pending-count { background: var(--amber); color: #fff; border-radius: 999px; font-size: 0.68rem; font-weight: 600; padding: 0 0.4rem; min-width: 1.1rem; text-align: center; }
+    .pending-item { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.65rem 0; border-top: 1px solid var(--border); font-size: 0.84rem; }
+    .pending-item:first-child { border-top: none; }
+    .pending-item .meta { color: var(--text-muted); font-size: 0.76rem; }
+    .pending-item .err { color: var(--rose); font-size: 0.76rem; }
+
+    /* Modo demo: panel de arquitectura */
+    .arch-service { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.9rem 1rem; margin-bottom: 0.85rem; }
+    .arch-service h4 { font-size: 0.95rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .arch-service .meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
+    .arch-layers { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.5rem; margin-top: 0.7rem; }
+    .arch-layer { background: var(--bg-alt); border-radius: 6px; padding: 0.55rem 0.7rem; font-size: 0.78rem; }
+    .arch-layer strong { display: block; font-size: 0.8rem; }
+    .arch-layer code { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-muted); }
+    .arch-layer ul { margin: 0.3rem 0 0 1rem; padding: 0; }
+    .arch-note { font-size: 0.78rem; margin-top: 0.6rem; }
+    .arch-events { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; margin-top: 0.4rem; color: var(--text-muted); }
+
+    /* CU05: asistente de ayuda */
+    .help-fab {
+      position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 950;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: var(--brand); color: #fff; border: none; border-radius: 999px;
+      padding: 0.6rem 0.95rem; font-family: inherit; font-size: 0.84rem; font-weight: 500; cursor: pointer;
+      box-shadow: var(--shadow-lg);
+    }
+    .help-fab:hover { background: var(--brand-hover, #1e40af); }
+    .help-panel {
+      position: fixed; right: 1.25rem; bottom: 4.5rem; z-index: 960;
+      width: 380px; max-width: calc(100vw - 2rem); height: min(540px, calc(100vh - 7rem));
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .help-head { display: flex; justify-content: space-between; align-items: flex-start; padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--border); }
+    .help-list { flex: 1; overflow-y: auto; padding: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem; }
+    .help-msg { font-size: 0.84rem; line-height: 1.45; max-width: 92%; }
+    .help-msg.bot { align-self: flex-start; background: var(--bg-alt); border-radius: 8px; padding: 0.55rem 0.7rem; }
+    .help-msg.user { align-self: flex-end; background: var(--brand); color: #fff; border-radius: 8px; padding: 0.45rem 0.7rem; }
+    .help-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+    .help-actions .btn-secondary { font-size: 0.78rem; padding: 0.3rem 0.6rem; min-height: 0; }
+    .help-actions .filter-chip { text-align: left; }
+    .help-source { margin-top: 0.35rem; font-size: 0.72rem; }
+    .help-form { display: flex; gap: 0.4rem; padding: 0.6rem; border-top: 1px solid var(--border); }
+    .help-form .form-control { flex: 1; min-width: 0; }
+    .help-mic.listening { color: var(--rose); border-color: #fecdd3; }
+    @media (max-width: 640px) {
+      .help-fab { bottom: calc(76px + env(safe-area-inset-bottom)); right: 0.85rem; padding: 0.55rem 0.8rem; }
+      .help-fab span:not(.icon) { display: none; }
+      .help-panel { inset: 0; width: auto; max-width: none; height: auto; border-radius: 0; border: none; bottom: 0; right: 0; }
+    }
+
+    /* Aviso de versión nueva de la app */
+    .update-bar {
+      position: fixed; left: 50%; transform: translateX(-50%); top: 0.75rem; z-index: 1200;
+      display: flex; align-items: center; gap: 0.75rem;
+      background: #18181b; color: #fff; padding: 0.5rem 0.6rem 0.5rem 0.9rem; border-radius: 8px;
+      font-size: 0.84rem; box-shadow: var(--shadow-lg);
+    }
+    .update-bar .btn { min-height: 0; padding: 0.3rem 0.7rem; }
   </style>
 
   <!-- Configuración Global Inmediata de API Gateway para Microfrontends -->
@@ -696,9 +850,11 @@
   </script>
 
   <!-- Runtimes para Microfrontends Políglotas (React 18 & Angular 17 & Next.js 14) -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/keycloak-js@24.0.5/dist/keycloak.min.js"></script>
+  <!-- CU22: cola de acciones sin conexión (IndexedDB) -->
+  <script src="/src/pwa/offline-queue.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -824,12 +980,29 @@
             <span class="role" id="headerUserRole">ROL</span>
           </div>
         </div>
-        <button class="btn-logout" onclick="logout()"><span data-icon="LogOut" data-size="14"></span>Cerrar sesión</button>
+        <div class="bell-wrap hidden" id="bellWrap">
+          <button class="bell-btn" id="btnBell" onclick="toggleCampanita(event)" aria-label="Alertas del negocio" title="Alertas del negocio">
+            <span data-icon="Bell" data-size="18"></span>
+            <span class="bell-badge hidden" id="bellBadge">0</span>
+          </button>
+          <div class="bell-panel hidden" id="bellPanel" onclick="event.stopPropagation()"></div>
+        </div>
+        <button class="btn-logout hidden" id="btnTelegram" onclick="abrirTelegram()" title="Vincular tu Telegram para recibir alertas"></button>
+        <button class="btn-logout demo-only" id="btnArquitectura" onclick="abrirArquitectura()" title="Arquitectura de cada microservicio (modo demo)"><span data-icon="Layers" data-size="14"></span><span class="btn-text">Arquitectura</span></button>
+        <button class="btn-logout hidden" id="btnPendientes" onclick="abrirPendientes()" title="Acciones guardadas sin conexión"><span data-icon="CloudUpload" data-size="14"></span><span class="btn-text">Pendientes</span> <span class="pending-count" id="pendientesCount">0</span></button>
+        <button class="btn-logout hidden" id="btnInstall" onclick="instalarApp()" title="Instalar Habitat Pro en este dispositivo"><span data-icon="Download" data-size="14"></span><span class="btn-text">Instalar app</span></button>
+        <button class="btn-logout" onclick="logout()" aria-label="Cerrar sesión"><span data-icon="LogOut" data-size="14"></span><span class="btn-text">Cerrar sesión</span></button>
       </div>
     </header>
 
     <!-- Contenido principal -->
     <main class="app-shell">
+      <!-- CU22: aviso de modo sin conexión -->
+      <div id="offlineBar" class="notice warn offline-bar hidden" role="status">
+        <span data-icon="CloudOff"></span>
+        <div style="flex:1;" id="offlineBarText">Sin conexión.</div>
+        <button class="btn btn-secondary hidden" id="btnReconectar" onclick="location.reload()">Reconectar</button>
+      </div>
 
       <!-- SECCIÓN 1: CATÁLOGO (MFE React) -->
       <section id="viewCatalogo" class="view-stack">
@@ -890,6 +1063,19 @@
           <div>
             <h2>Reservas</h2>
             <p>El inmueble queda apartado 48 h mientras se prepara el contrato.</p>
+          </div>
+        </div>
+
+        <!-- CU06: avisos push en este dispositivo (solo cliente) -->
+        <div id="pushBox" class="notice hidden" style="align-items:center;">
+          <span data-icon="BellRing"></span>
+          <div style="flex:1;">
+            <div style="font-weight:500;">Avisos en este dispositivo</div>
+            <div class="hint" id="pushStatus">Recibe un aviso cuando tu reserva se confirme, se cancele o esté por vencer, aunque la app esté cerrada.</div>
+          </div>
+          <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+            <button class="btn btn-secondary hidden" id="btnPushTest" onclick="probarAviso()">Probar aviso</button>
+            <button class="btn" id="btnPush" onclick="alternarAvisos()">Activar avisos</button>
           </div>
         </div>
 
@@ -1131,6 +1317,46 @@
     </div>
   </div>
 
+  <!-- MODAL: VINCULAR TELEGRAM (alertas del agente monitor, CU21) -->
+  <div class="modal-backdrop" id="modalTelegram">
+    <div class="modal-window" style="max-width:480px;">
+      <div class="modal-head">
+        <h3>Telegram</h3>
+        <button class="modal-close" aria-label="Cerrar" onclick="cerrarTelegram()"><span data-icon="X" data-size="18"></span></button>
+      </div>
+      <div class="modal-body" id="telegramModalBody"></div>
+    </div>
+  </div>
+
+  <!-- Modo demo: arquitectura interna de cada microservicio (DDD, Hexagonal, Clean) -->
+  <div class="modal-backdrop" id="modalArquitectura">
+    <div class="modal-window" style="max-width:860px;">
+      <div class="modal-head">
+        <h3>Arquitectura del sistema</h3>
+        <button class="modal-close" onclick="closeModal('modalArquitectura')" aria-label="Cerrar"><span data-icon="X" data-size="18"></span></button>
+      </div>
+      <div class="modal-body" id="arquitecturaBody"><p class="hint">Cargando…</p></div>
+    </div>
+  </div>
+
+  <!-- CU22: acciones guardadas sin conexión -->
+  <div class="modal-backdrop" id="modalPendientes">
+    <div class="modal-window" style="max-width:520px;">
+      <div class="modal-head">
+        <h3>Pendientes de enviar</h3>
+        <button class="modal-close" onclick="closeModal('modalPendientes')" aria-label="Cerrar"><span data-icon="X" data-size="18"></span></button>
+      </div>
+      <div class="modal-body">
+        <p class="hint" style="margin-bottom:0.75rem;">Se guardaron en este dispositivo mientras no había conexión. Se envían solas al volver la señal; cada una se registra una sola vez aunque se reintente.</p>
+        <div id="pendientesLista"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modalPendientes')">Cerrar</button>
+        <button class="btn" id="btnEnviarPendientes" onclick="enviarPendientes(true)"><span data-icon="CloudUpload" data-size="15"></span>Enviar ahora</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Aviso flotante -->
   <div id="toast" class="toast-msg">
     <span data-icon="CircleCheck"></span>
@@ -1158,15 +1384,247 @@
 
     // Adjunta el token de Keycloak a toda llamada al API Gateway (shell y microfrontends).
     const nativeFetch = window.fetch.bind(window);
+
+    // Idempotency-Key (Fase 3): toda escritura al gateway lleva una clave. Si el mismo pedido se repite
+    // dentro de 2 minutos (doble toque, reintento por mala señal), se reutiliza la clave y el gateway
+    // devuelve la respuesta de la primera vez en lugar de ejecutarlo de nuevo.
+    const IDEMPOTENCY_WINDOW_MS = 2 * 60 * 1000;
+    const recentKeys = new Map(); // firma del pedido -> { key, at }
+    function nuevaClave() {
+      return (crypto.randomUUID && crypto.randomUUID()) || `k-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+    }
+    const firmaDe = (method, url, body) => `${method} ${url} ${typeof body === 'string' ? body : ''}`;
+    function claveIdempotencia(method, url, body) {
+      const firma = firmaDe(method, url, body);
+      const now = Date.now();
+      for (const [k, v] of recentKeys) if (now - v.at > IDEMPOTENCY_WINDOW_MS) recentKeys.delete(k);
+      const previa = recentKeys.get(firma);
+      if (previa) return previa.key;
+      const key = nuevaClave();
+      recentKeys.set(firma, { key, at: now });
+      return key;
+    }
+    // Con la respuesta en mano el pedido terminó: la clave se libera (salvo 409 "en curso"), así una
+    // acción nueva e igual (reservar, cancelar y volver a reservar) no recibe la respuesta vieja.
+    // Si la red falló, la clave se conserva para que el reintento la reutilice.
+    function liberarClave(method, url, body, key, status) {
+      const firma = firmaDe(method, url, body);
+      if (status !== 409 && recentKeys.get(firma)?.key === key) recentKeys.delete(firma);
+    }
+    window.HabitatIdempotency = { claveIdempotencia, nuevaClave };
+
     window.fetch = (input, init = {}) => {
       const url = String(input instanceof Request ? input.url : input);
-      if (keycloak.token && url.startsWith(API_URL)) {
+      if (url.startsWith(API_URL)) {
+        const method = String(init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
         const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
-        if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${keycloak.token}`);
+        if (keycloak.token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${keycloak.token}`);
+        let autoKey = null;
+        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !headers.has('Idempotency-Key')) {
+          autoKey = claveIdempotencia(method, url, init.body);
+          headers.set('Idempotency-Key', autoKey);
+        }
         init = { ...init, headers };
+        if (autoKey) {
+          const body = init.body;
+          // CU22: sin señal, la visita o la consulta se guardan en la cola; lo demás avisa que necesita conexión.
+          if (navigator.onLine === false) {
+            liberarClave(method, url, body, autoKey, 0);
+            return accionSinConexion(method, url, body, autoKey);
+          }
+          return nativeFetch(input, init).then((res) => {
+            liberarClave(method, url, body, autoKey, res.status);
+            return res;
+          }, (err) => {
+            if (window.HabitatOffline?.queueable(method, url)) {
+              liberarClave(method, url, body, autoKey, 0);
+              return accionSinConexion(method, url, body, autoKey);
+            }
+            throw err;
+          });
+        }
+        if (method === 'GET') {
+          // Si la respuesta salió de la copia guardada (sin red o servidor caído), se avisa con la fecha.
+          return nativeFetch(input, init).then((res) => {
+            if (res.headers.get('X-Habitat-Offline')) marcarDatosGuardados(res.headers.get('X-Habitat-Saved-At'));
+            else if (res.ok) actualizarBarraSinConexion();
+            return res;
+          });
+        }
       }
       return nativeFetch(input, init);
     };
+
+    // ---------------- CU22: modo sin conexión ----------------
+    const respuestaJson = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+    let datosGuardadosEl = null;    // fecha de la última copia del catálogo
+    let sesionSinConexion = false;  // se entró sin red, con el último perfil guardado
+
+    function resumenPendiente(url, body) {
+      try {
+        const b = JSON.parse(body || '{}');
+        if (/\/appointments$/.test(url)) return `${b.propertyTitle || 'Inmueble'} · ${b.visitDate || ''} ${b.visitTime || ''}`.trim();
+        if (/\/inquiries$/.test(url)) return `"${String(b.message || '').slice(0, 80)}"`;
+      } catch (_) { /* cuerpo no JSON */ }
+      return '';
+    }
+
+    async function accionSinConexion(method, url, body, key) {
+      const q = window.HabitatOffline?.queueable(method, url);
+      if (!q) {
+        return respuestaJson(503, { success: false, offline: true, message: 'Necesitas conexión a internet para esta operación. Inténtalo cuando vuelva la señal.' });
+      }
+      try {
+        await window.HabitatOffline.enqueue({ url, method, body, key, label: q.label, summary: resumenPendiente(url, body) });
+      } catch (e) {
+        return respuestaJson(503, { success: false, offline: true, message: 'Sin conexión y no se pudo guardar en este dispositivo. Inténtalo cuando vuelva la señal.' });
+      }
+      actualizarBarraSinConexion();
+      return respuestaJson(202, {
+        success: true, queued: true, data: { queued: true },
+        message: 'Estás sin conexión: quedó guardada y se enviará sola al volver la señal.'
+      });
+    }
+
+    function marcarDatosGuardados(savedAt) {
+      if (savedAt) datosGuardadosEl = savedAt;
+      actualizarBarraSinConexion(true);
+    }
+
+    function actualizarBarraSinConexion(servidorCaido = false) {
+      const bar = document.getElementById('offlineBar');
+      if (!bar) return;
+      const sinRed = navigator.onLine === false || servidorCaido || sesionSinConexion;
+      const fecha = datosGuardadosEl
+        ? new Date(datosGuardadosEl).toLocaleString('es-BO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+        : null;
+      let texto;
+      if (navigator.onLine !== false && sesionSinConexion) {
+        texto = 'Volvió la conexión. Reconecta para iniciar sesión y enviar lo pendiente.';
+      } else {
+        texto = `Sin conexión. ${fecha ? `Estás viendo el catálogo guardado el ${fecha}.` : 'Estás viendo los datos guardados.'} Puedes agendar visitas y enviar consultas: se mandan solas al volver la señal. Reservar y firmar necesitan conexión.`;
+      }
+      document.getElementById('offlineBarText').textContent = texto;
+      document.getElementById('btnReconectar').classList.toggle('hidden', !(sesionSinConexion && navigator.onLine !== false));
+      bar.classList.toggle('hidden', !sinRed);
+      HabitatIcons.render(bar);
+    }
+
+    // Envía la cola con la sesión vigente (el token no se guarda en el dispositivo).
+    async function enviarPendientes(manual = false) {
+      if (!window.HabitatOffline || navigator.onLine === false) {
+        if (manual) showToast('Todavía no hay conexión.');
+        return;
+      }
+      if (sesionSinConexion || !keycloak.token) {
+        if (manual) showToast('Inicia sesión para enviar lo pendiente.');
+        return;
+      }
+      try { await keycloak.updateToken(30); } catch (_) {
+        showToast('Tu sesión venció: inicia sesión para enviar lo pendiente.');
+        return;
+      }
+      const result = await window.HabitatOffline.flush((item) => nativeFetch(item.url, {
+        method: item.method,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keycloak.token}`, 'Idempotency-Key': item.key },
+        body: item.body
+      }));
+      if (result.needsLogin) showToast('Tu sesión venció: inicia sesión para enviar lo pendiente.');
+      if (result.sent.length) {
+        showToast(result.sent.length === 1 ? `Se envió: ${result.sent[0].label.toLowerCase()}.` : `Se enviaron ${result.sent.length} acciones pendientes.`);
+        if (result.sent.some((i) => /appointments/.test(i.url))) window.dispatchEvent(new CustomEvent('habitat:refresh:contracts', { detail: { view: 'agenda' } }));
+      }
+      if (result.failed.length) {
+        alert('No se pudieron registrar:\n\n' + result.failed.map((i) => `- ${i.label}: ${i.lastError}`).join('\n'));
+      }
+    }
+
+    async function abrirPendientes() {
+      await renderPendientes();
+      document.getElementById('modalPendientes').classList.add('open');
+    }
+
+    async function renderPendientes(items) {
+      items = items || (window.HabitatOffline ? await window.HabitatOffline.list() : []);
+      const lista = document.getElementById('pendientesLista');
+      if (!lista) return;
+      lista.innerHTML = items.length === 0
+        ? '<p class="hint">No hay nada pendiente.</p>'
+        : items.map((i) => `
+          <div class="pending-item">
+            ${HabitatIcons.html(/appointments/.test(i.url) ? 'CalendarClock' : 'MessageSquare', 16)}
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:500;">${escapeHtml(i.label)}</div>
+              <div class="meta">${escapeHtml(i.summary)}</div>
+              <div class="meta">Guardada el ${new Date(i.createdAt).toLocaleString('es-BO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}${i.attempts ? ` · ${i.attempts} intento(s)` : ''}</div>
+              ${i.lastError ? `<div class="err">${escapeHtml(i.lastError)}</div>` : ''}
+            </div>
+            <button class="btn-logout" onclick="descartarPendiente('${i.key}')">Descartar</button>
+          </div>`).join('');
+    }
+
+    async function descartarPendiente(key) {
+      if (!confirm('¿Descartar esta acción? No se enviará.')) return;
+      await window.HabitatOffline.remove(key);
+      renderPendientes();
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    // Modo demo: cada microservicio describe su arquitectura interna (DDD / Hexagonal / Clean) y el gateway sus patrones.
+    async function abrirArquitectura() {
+      const body = document.getElementById('arquitecturaBody');
+      body.innerHTML = '<p class="hint">Cargando…</p>';
+      document.getElementById('modalArquitectura').classList.add('open');
+      try {
+        const res = await fetch(`${API_URL}/architecture`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message);
+        body.innerHTML = data.data.map((s) => `
+          <section class="arch-service">
+            <h4>${escapeHtml(s.service)} <span class="status-pill info">${escapeHtml(s.architecture)}</span>${s.unavailable ? '<span class="status-pill warn">sin respuesta</span>' : ''}</h4>
+            <div class="meta">${escapeHtml(s.technology || '')}${s.boundedContext ? ` · Contexto: ${escapeHtml(s.boundedContext)}` : ''}</div>
+            <div class="arch-layers">
+              ${(s.layers || []).map((l) => `
+                <div class="arch-layer"><strong>${escapeHtml(l.name)}</strong><code>${escapeHtml(l.path)}</code>
+                  <ul>${(l.items || []).map((i) => `<li>${escapeHtml(i)}</li>`).join('')}</ul></div>`).join('')}
+            </div>
+            ${s.invariants ? `<div class="arch-note"><strong>Invariantes del agregado:</strong> ${s.invariants.map(escapeHtml).join(' · ')}</div>` : ''}
+            ${s.rule ? `<div class="arch-note hint">${escapeHtml(s.rule)}</div>` : ''}
+            ${s.recentDomainEvents ? `<div class="arch-note"><strong>Últimos eventos de dominio:</strong>${s.recentDomainEvents.length
+              ? s.recentDomainEvents.map((e) => `<div class="arch-events">${escapeHtml(e.occurredAt.slice(11, 19))} ${escapeHtml(e.name)} · ${escapeHtml(e.propertyCode)}</div>`).join('')
+              : ' <span class="hint">todavía no hubo reservas desde que arrancó el servicio</span>'}</div>` : ''}
+          </section>`).join('');
+      } catch (e) {
+        body.innerHTML = `<div class="notice error">No se pudo cargar la arquitectura: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    // Último perfil (sin token) para abrir la app en modo lectura cuando no hay red.
+    const PERFIL_KEY = 'habitat-last-profile';
+    function guardarPerfil(u) {
+      try {
+        const { id, name, email, initials, role, systemRole, sector, phone } = u;
+        localStorage.setItem(PERFIL_KEY, JSON.stringify({ id, name, email, initials, role, systemRole, sector, phone }));
+      } catch (_) { /* almacenamiento bloqueado */ }
+    }
+    function perfilGuardado() {
+      try { return JSON.parse(localStorage.getItem(PERFIL_KEY) || 'null'); } catch (_) { return null; }
+    }
+
+    window.addEventListener('online', () => { actualizarBarraSinConexion(); enviarPendientes(); });
+    window.addEventListener('offline', () => actualizarBarraSinConexion());
+    if (window.HabitatOffline) {
+      window.HabitatOffline.onChange((items) => {
+        const btn = document.getElementById('btnPendientes');
+        if (!btn) return;
+        document.getElementById('pendientesCount').textContent = items.length;
+        btn.classList.toggle('hidden', items.length === 0);
+        if (document.getElementById('modalPendientes')?.classList.contains('open')) renderPendientes(items);
+      });
+    }
 
     // Puente de Autenticación y Contexto Global para Microfrontends
     window.HabitatAuth = {
@@ -1201,6 +1659,21 @@
 
     // INICIALIZACIÓN: si ya hay sesión en Keycloak (de esta u otra app), se entra sin pedir contraseña.
     window.onload = async function() {
+      // CU22: sin red no se puede validar la sesión con Keycloak; si ya se entró antes en este
+      // dispositivo, se abre en modo lectura con el catálogo guardado.
+      if (navigator.onLine === false) {
+        const perfil = perfilGuardado();
+        if (perfil) {
+          currentUser = perfil;
+          sesionSinConexion = true;
+          showApp();
+          actualizarBarraSinConexion();
+        } else {
+          mostrarErrorLogin('Sin conexión. Inicia sesión una vez con internet para poder usar la app sin conexión en este dispositivo.');
+          showLogin();
+        }
+        return;
+      }
       try {
         const authenticated = await keycloak.init({ onLoad: 'check-sso', pkceMethod: 'S256', checkLoginIframe: false });
         if (authenticated) {
@@ -1248,6 +1721,8 @@
           return;
         }
         currentUser = { ...data.user, systemRole: data.user.role, role: rolDeInterfaz(data.user) };
+        guardarPerfil(currentUser);
+        setTimeout(() => enviarPendientes(), 1500); // CU22: lo guardado sin conexión se envía al entrar
         programarRenovacionToken();
         showApp();
         showToast(`Bienvenido ${currentUser.name}`);
@@ -1266,6 +1741,8 @@
 
     function logout() {
       currentUser = null;
+      try { localStorage.removeItem(PERFIL_KEY); } catch (_) { /* nada */ }
+      if (sesionSinConexion) { location.reload(); return; }
       keycloak.logout({ redirectUri: window.location.origin + window.location.pathname });
     }
 
@@ -1300,6 +1777,9 @@
       }
 
       configurarNavegacionPorRol();
+      window.HabitatAssistant?.mostrar(); // CU05
+      actualizarBotonTelegram();
+      iniciarCampanita();
 
       // Botón Reabrir Todo el Catálogo (Solo ADMIN)
       const btnResetAll = document.getElementById('btnResetAllAdmin');
@@ -1311,7 +1791,8 @@
         }
       }
 
-      navigate('catalogo');
+      // CU06: al abrir la app desde un aviso (/#reservas) se va directo a las reservas
+      navigate(location.hash === '#reservas' && document.getElementById('tabReservas') ? 'reservas' : 'catalogo');
       window.dispatchEvent(new CustomEvent('habitat:refresh:contracts'));
       window.dispatchEvent(new CustomEvent('habitat:refresh:properties'));
       window.dispatchEvent(new CustomEvent('habitat:refresh:finances'));
@@ -1381,6 +1862,7 @@
         document.getElementById('viewReservas').classList.remove('hidden');
         document.getElementById('tabReservas')?.classList.add('active');
         cargarReservasDesdeBD();
+        actualizarEstadoAvisos();
       } else if (viewName === 'contratos') {
         document.getElementById('viewContratos').classList.remove('hidden');
         document.getElementById('tabContratos')?.classList.add('active');
@@ -1400,6 +1882,301 @@
         document.getElementById('viewSegmentos').classList.remove('hidden');
         document.getElementById('tabSegmentos')?.classList.add('active');
         cargarSegmentos();
+      }
+    }
+
+    // TELEGRAM (CU21): el empleado vincula su chat una vez; el Administrador decide en "Empleados" quién recibe las alertas.
+    // Un bot solo puede escribir a quien antes le escribió, por eso el empleado abre el bot y pulsa "Iniciar".
+    let telegramLinkCode = null;
+    let telegramLinkInfo = null;
+    let telegramPollTimer = null;
+    let telegramPollUntil = 0;
+
+    function actualizarBotonTelegram() {
+      const btn = document.getElementById('btnTelegram');
+      if (!currentUser || currentUser.role === 'CLIENTE') { btn.classList.add('hidden'); return; }
+      btn.classList.remove('hidden');
+      btn.innerHTML = HabitatIcons.html(currentUser.telegramLinked ? 'CircleCheck' : 'Send', 14) +
+        `<span class="btn-text">${currentUser.telegramLinked ? 'Telegram' : 'Conectar Telegram'}</span>`;
+    }
+
+    function renderTelegramModal(state = {}) {
+      const body = document.getElementById('telegramModalBody');
+      if (currentUser.telegramLinked) {
+        body.innerHTML = `
+          <div class="notice">${HabitatIcons.html('CircleCheck')}<div><strong>Tu Telegram está vinculado.</strong> Recibirás por Telegram las alertas del agente monitor${currentUser.telegramAlerts ? '' : ' cuando el Administrador te las active'}.</div></div>
+          <p class="hint">Este Telegram solo está vinculado a tu cuenta: si lo vinculas en otra cuenta, se desvincula de esta.</p>
+          <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+            <button class="btn-logout" onclick="desvincularTelegram()">Desvincular</button>
+            <button class="btn" onclick="cerrarTelegram()">Listo</button>
+          </div>`;
+        return;
+      }
+      const info = state.info;
+      if (!info) {
+        body.innerHTML = `
+          <p style="font-size:0.88rem;">Vincula tu Telegram para recibir las alertas del negocio (reservas por vencer, consultas sin responder, cobros pendientes).</p>
+          <p class="hint">Telegram no permite que un bot escriba a un número: primero tienes que escribirle tú al bot, con un código que te damos aquí.</p>
+          <p class="hint">Cada empleado vincula su propio Telegram. Un mismo Telegram solo puede estar en una cuenta: si lo vinculas en otra, se desvincula de la anterior.</p>
+          ${state.error ? `<div class="notice error">${esc(state.error)}</div>` : ''}
+          <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+            <button class="btn btn-secondary" onclick="cerrarTelegram()">Cancelar</button>
+            <button class="btn" onclick="iniciarVinculacionTelegram()">${HabitatIcons.html('Send', 14)}Vincular mi Telegram</button>
+          </div>`;
+        return;
+      }
+      const command = `/start ${info.code}`;
+      body.innerHTML = `
+        <p style="font-size:0.86rem;">Elige la forma más cómoda (el código vale 10 minutos):</p>
+        <div style="display:grid; grid-template-columns:auto 1fr; gap:1rem; align-items:center;">
+          <div id="telegramQr" style="width:132px; height:132px; padding:6px; background:#fff; border:1px solid var(--border); border-radius:6px;"></div>
+          <div style="display:flex; flex-direction:column; gap:0.3rem;">
+            <strong style="font-size:0.84rem;">1. Con el celular</strong>
+            <span class="hint">Escanea el código con la cámara y pulsa <strong>Iniciar</strong> en Telegram.</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:0.35rem;">
+          <strong style="font-size:0.84rem;">2. Desde cualquier Telegram (web, celular o escritorio)</strong>
+          <span class="hint">Envía este mensaje al bot <a href="https://web.telegram.org/k/#@${esc(info.bot)}" target="_blank" rel="noopener">@${esc(info.bot)}</a>:</span>
+          <div style="display:flex; gap:0.4rem;">
+            <input class="form-control" readonly value="${esc(command)}" style="font-family:'JetBrains Mono', monospace; font-size:0.8rem;">
+            <button class="btn btn-secondary" onclick="copiarComandoTelegram()">${HabitatIcons.html('Copy', 14)}Copiar</button>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:0.35rem;">
+          <strong style="font-size:0.84rem;">3. Si tienes Telegram instalado en esta computadora</strong>
+          <a class="btn btn-secondary" href="${esc(info.link)}" target="_blank" rel="noopener" style="width:fit-content;">${HabitatIcons.html('ExternalLink', 14)}Abrir la app de Telegram</a>
+        </div>
+        ${state.error ? `<div class="notice error">${esc(state.error)}</div>` : ''}
+        <div class="notice" style="align-items:center;"><span class="pulsing-record-dot" style="background:var(--brand);"></span><div>Esperando tu mensaje en Telegram… se confirma solo.</div></div>
+        <div style="display:flex; justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="cerrarTelegram()">Cancelar</button>
+        </div>`;
+      dibujarQrTelegram(info.link);
+    }
+
+    // QR con el enlace al bot (la librería se descarga solo cuando se vincula).
+    async function dibujarQrTelegram(link) {
+      try {
+        if (!window.QRCode) {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+            s.onload = resolve;
+            s.onerror = reject;
+            document.head.appendChild(s);
+          });
+        }
+        const box = document.getElementById('telegramQr');
+        if (!box) return;
+        box.innerHTML = '';
+        new QRCode(box, { text: link, width: 120, height: 120, colorDark: '#18181b', colorLight: '#ffffff' });
+      } catch (_) {
+        const box = document.getElementById('telegramQr');
+        if (box) box.innerHTML = '<span class="hint">No se pudo dibujar el QR: usa la opción 2.</span>';
+      }
+    }
+
+    function copiarComandoTelegram() {
+      const text = `/start ${telegramLinkCode}`;
+      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+        .then(() => showToast('Mensaje copiado. Pégalo en el chat del bot y envíalo.'))
+        .catch(() => prompt('Copia este mensaje y envíalo al bot:', text));
+    }
+
+    function abrirTelegram() {
+      renderTelegramModal();
+      document.getElementById('modalTelegram').classList.add('open');
+    }
+
+    function detenerSondeoTelegram() {
+      if (telegramPollTimer) clearInterval(telegramPollTimer);
+      telegramPollTimer = null;
+    }
+
+    function cerrarTelegram() {
+      detenerSondeoTelegram();
+      closeModal('modalTelegram');
+    }
+
+    async function iniciarVinculacionTelegram() {
+      try {
+        const res = await fetch(`${API_URL}/telegram/link`, { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message);
+        telegramLinkCode = data.data.code;
+        telegramLinkInfo = data.data;
+        renderTelegramModal({ info: telegramLinkInfo });
+        detenerSondeoTelegram();
+        telegramPollUntil = Date.now() + 10 * 60 * 1000;
+        telegramPollTimer = setInterval(verificarTelegram, 3000);
+      } catch (e) {
+        renderTelegramModal({ error: e.message });
+      }
+    }
+
+    async function verificarTelegram() {
+      if (Date.now() > telegramPollUntil) {
+        detenerSondeoTelegram();
+        renderTelegramModal({ error: 'El código venció sin recibir tu mensaje. Pulsa "Vincular mi Telegram" para generar otro.' });
+        return;
+      }
+      try {
+        const res = await fetch(`${API_URL}/telegram/link/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: telegramLinkCode })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message);
+        if (!data.data.linked) return;
+        detenerSondeoTelegram();
+        currentUser.telegramLinked = true;
+        currentUser.telegramAlerts = Boolean(data.data.user?.telegramAlerts);
+        actualizarBotonTelegram();
+        renderTelegramModal();
+        showToast('Telegram vinculado. Te enviamos un mensaje de confirmación.');
+        window.dispatchEvent(new CustomEvent('habitat:refresh:contracts', { detail: { view: 'empleados' } }));
+      } catch (e) {
+        detenerSondeoTelegram();
+        renderTelegramModal({ error: e.message });
+      }
+    }
+
+    async function desvincularTelegram() {
+      if (!confirm('¿Desvincular tu Telegram? Dejarás de recibir las alertas.')) return;
+      try {
+        const res = await fetch(`${API_URL}/telegram/link`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message);
+        currentUser.telegramLinked = false;
+        currentUser.telegramAlerts = false;
+        actualizarBotonTelegram();
+        renderTelegramModal();
+        showToast('Telegram desvinculado.');
+      } catch (e) {
+        alert('No se pudo desvincular: ' + e.message);
+      }
+    }
+
+    // CAMPANITA (CU21): últimas revisiones del agente monitor. Lo "leído" se recuerda en este navegador.
+    let monitorReports = [];
+    let bellSelected = 0;
+    let bellTimer = null;
+    let bellRunning = false;
+    const BELL_TONES = { alta: 'bad', media: 'warn', baja: 'info' };
+    const bellSeenKey = () => `habitat-bell-seen-${currentUser?.id}`;
+
+    function iniciarCampanita() {
+      const wrap = document.getElementById('bellWrap');
+      if (!currentUser || currentUser.role === 'CLIENTE') { wrap.classList.add('hidden'); return; }
+      wrap.classList.remove('hidden');
+      HabitatIcons.render(wrap);
+      cargarCampanita();
+      if (!bellTimer) bellTimer = setInterval(cargarCampanita, 5 * 60 * 1000);
+    }
+
+    async function cargarCampanita() {
+      try {
+        const res = await fetch(`${API_URL}/monitor/reports?limit=6`);
+        const result = await res.json();
+        if (!result.success) return;
+        monitorReports = result.data || [];
+        let seen = 0;
+        try { seen = Number(localStorage.getItem(bellSeenKey())) || 0; } catch (_) {}
+        const latest = monitorReports[0];
+        const badge = document.getElementById('bellBadge');
+        const unread = latest && latest.id > seen ? latest.alertCount : 0;
+        badge.textContent = unread > 9 ? '9+' : String(unread);
+        badge.classList.toggle('hidden', !unread);
+        if (!document.getElementById('bellPanel').classList.contains('hidden')) renderCampanita();
+      } catch (e) {
+        console.warn('No se pudieron cargar las alertas:', e);
+      }
+    }
+
+    function toggleCampanita(event) {
+      event.stopPropagation();
+      const panel = document.getElementById('bellPanel');
+      const open = panel.classList.toggle('hidden') === false;
+      document.getElementById('btnBell').classList.toggle('open', open);
+      if (!open) return;
+      bellSelected = 0;
+      renderCampanita();
+      if (monitorReports[0]) {
+        try { localStorage.setItem(bellSeenKey(), String(monitorReports[0].id)); } catch (_) {}
+        document.getElementById('bellBadge').classList.add('hidden');
+      }
+    }
+
+    document.addEventListener('click', () => {
+      const panel = document.getElementById('bellPanel');
+      if (panel && !panel.classList.contains('hidden')) {
+        panel.classList.add('hidden');
+        document.getElementById('btnBell').classList.remove('open');
+      }
+    });
+
+    function fechaCorta(iso) {
+      return new Date(iso).toLocaleString('es-BO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+
+    function renderCampanita() {
+      const panel = document.getElementById('bellPanel');
+      const isAdmin = currentUser.role === 'ADMIN';
+      const report = monitorReports[bellSelected];
+      const alerts = report ? (Array.isArray(report.alerts) ? report.alerts : []) : [];
+      const head = `
+        <div class="bell-head">
+          <h3>Alertas del negocio</h3>
+          ${isAdmin ? `<button class="btn btn-secondary" style="padding:0.35rem 0.7rem; font-size:0.78rem;" ${bellRunning ? 'disabled' : ''} onclick="revisarAhora()">${HabitatIcons.html('RefreshCw', 13)}${bellRunning ? 'Revisando…' : 'Revisar ahora'}</button>` : ''}
+        </div>`;
+      if (!report) {
+        panel.innerHTML = head + `<div class="bell-section"><p class="hint">Todavía no hay revisiones. El agente revisa el negocio cada mañana a las 08:00${isAdmin ? ', o pulsa "Revisar ahora"' : ''}.</p></div>`;
+        return;
+      }
+      const body = alerts.length
+        ? alerts.map(a => `
+            <details class="bell-alert" ${a.prioridad === 'alta' ? 'open' : ''}>
+              <summary><span class="status-pill ${BELL_TONES[a.prioridad] || 'off'}">${esc(a.prioridad)}</span><span class="title">${esc(a.titulo)}</span><span class="chev">${HabitatIcons.html('ChevronDown', 14)}</span></summary>
+              ${a.detalle ? `<div class="hint">${esc(a.detalle)}</div>` : ''}
+              ${a.accion ? `<div class="action">→ ${esc(a.accion)}</div>` : ''}
+            </details>`).join('')
+        : `<div class="notice">${HabitatIcons.html('CircleCheck')}<div>Sin pendientes que requieran atención.</div></div>`;
+      const meta = `${fechaCorta(report.createdAt)} · ${report.trigger === 'PROGRAMADO' ? 'revisión automática' : 'revisión manual'}${report.notifiedChats ? ` · enviada por Telegram a ${report.notifiedChats}` : ''}`;
+      const history = monitorReports.length > 1 ? `
+        <div class="bell-section bell-history" style="border-top:1px solid var(--border); gap:0.15rem;">
+          <div class="hint" style="padding:0 0.5rem 0.25rem;">Revisiones anteriores</div>
+          ${monitorReports.map((r, i) => `<button class="${i === bellSelected ? 'active' : ''}" onclick="bellSelected=${i}; renderCampanita();"><span>${fechaCorta(r.createdAt)}</span><span>${r.alertCount} alerta(s)</span></button>`).join('')}
+        </div>` : '';
+      panel.innerHTML = head + `
+        <div class="bell-section">
+          <div class="hint">${esc(meta)}</div>
+          <p style="font-size:0.85rem;">${esc(report.summary)}</p>
+          ${body}
+          <span class="demo-only demo-tag">Agente: ${esc(report.model || '')} + herramientas MCP · ${(report.inputTokens || 0) + (report.outputTokens || 0)} tokens</span>
+        </div>` + history;
+    }
+
+    async function revisarAhora() {
+      bellRunning = true;
+      renderCampanita();
+      try {
+        const res = await fetch(`${API_URL}/ai/monitor`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.message);
+        const t = result.data.telegram || {};
+        showToast(`Revisión lista: ${result.data.alertCount} alerta(s)${t.enviados ? ` · enviada por Telegram a ${t.enviados}` : ''}.`);
+        bellRunning = false;
+        await cargarCampanita();
+        bellSelected = 0;
+        try { localStorage.setItem(bellSeenKey(), String(monitorReports[0]?.id || 0)); } catch (_) {}
+        document.getElementById('bellBadge').classList.add('hidden');
+        renderCampanita();
+      } catch (e) {
+        bellRunning = false;
+        renderCampanita();
+        alert('No se pudo completar la revisión: ' + e.message);
       }
     }
 
@@ -1627,6 +2404,12 @@
         });
 
         const data = await res.json();
+        if (data.queued) {
+          // CU22: sin conexión quedó en la cola; se envía sola al volver la señal.
+          closeModal('modalAgendarVisita');
+          showToast(data.message);
+          return;
+        }
         if (data.success) {
           closeModal('modalAgendarVisita');
           showToast(`¡Cita agendada con éxito! El asesor inmobiliario te contactará por WhatsApp.`);
@@ -1744,7 +2527,7 @@
         const userPhone = r.userPhone || r.user_phone || '';
         const depositAmount = parseFloat(r.depositAmount || r.deposit_amount || 0);
         const [statusText, statusTone] = STATUS_LABELS[r.status] || [r.status, 'off'];
-        const expires = r.expires_at ? new Date(r.expires_at).toLocaleString('es-BO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+        const expires = r.expires_at ? new Date(r.expires_at).toLocaleString('es-BO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
 
         let actions = `<span class="hint">${r.cancelReason ? 'Motivo: ' + esc(r.cancelReason) : 'Cerrada'}</span>`;
         if (isActiva && canCancel) {
@@ -2101,6 +2884,188 @@
         alert('Error: ' + e.message);
       }
     }
+  </script>
+
+  <!-- CU05: asistente de ayuda (MiniLM en el navegador + Claude solo si el usuario lo pide) -->
+  <script src="/assistant/matcher.js"></script>
+  <script src="/assistant/assistant.js"></script>
+
+  <!-- CU06: notificaciones push de reservas (Web Push + VAPID) -->
+  <script>
+    window.currentUserReady = () => typeof currentUser !== 'undefined' && !!currentUser;
+    const pushSoportado = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    const esIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const instalada = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+    function base64UrlABytes(base64) {
+      const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+      const raw = atob((base64 + padding).replace(/-/g, '+').replace(/_/g, '/'));
+      return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+    }
+
+    async function suscripcionActual() {
+      if (!pushSoportado()) return null;
+      const reg = await navigator.serviceWorker.getRegistration('/');
+      return reg ? reg.pushManager.getSubscription() : null;
+    }
+
+    async function actualizarEstadoAvisos() {
+      const box = document.getElementById('pushBox');
+      if (!box) return;
+      const esCliente = currentUserReady() && currentUser.role === 'CLIENTE';
+      box.classList.toggle('hidden', !esCliente);
+      if (!esCliente) return;
+      HabitatIcons.render(box);
+      const status = document.getElementById('pushStatus');
+      const btn = document.getElementById('btnPush');
+      const test = document.getElementById('btnPushTest');
+      test.classList.add('hidden');
+      btn.classList.remove('hidden');
+      btn.disabled = false;
+
+      if (esIOS() && !instalada()) {
+        status.textContent = 'En iPhone los avisos funcionan con la app instalada: toca Compartir y luego "Agregar a pantalla de inicio".';
+        btn.classList.add('hidden');
+        return;
+      }
+      if (!pushSoportado()) {
+        status.textContent = 'Este navegador no permite avisos. Prueba con Chrome, Edge o Firefox.';
+        btn.classList.add('hidden');
+        return;
+      }
+      if (Notification.permission === 'denied') {
+        status.textContent = 'Bloqueaste los avisos para este sitio. Actívalos desde el candado de la barra de direcciones.';
+        btn.classList.add('hidden');
+        return;
+      }
+      const sub = await suscripcionActual();
+      if (sub) {
+        status.textContent = 'Activados: te avisaremos cuando tu reserva se confirme, se cancele o esté por vencer.';
+        btn.textContent = 'Desactivar';
+        btn.className = 'btn btn-secondary';
+        test.classList.remove('hidden');
+      } else {
+        status.textContent = 'Recibe un aviso cuando tu reserva se confirme, se cancele o esté por vencer, aunque la app esté cerrada.';
+        btn.textContent = 'Activar avisos';
+        btn.className = 'btn';
+      }
+    }
+
+    async function alternarAvisos() {
+      const btn = document.getElementById('btnPush');
+      btn.disabled = true;
+      try {
+        const actual = await suscripcionActual();
+        if (actual) {
+          await fetch(`${API_URL}/push/subscription?endpoint=${encodeURIComponent(actual.endpoint)}`, { method: 'DELETE' }).catch(() => {});
+          await actual.unsubscribe();
+          showToast('Avisos desactivados en este dispositivo.');
+          return;
+        }
+        const permiso = await Notification.requestPermission();
+        if (permiso !== 'granted') return;
+        const keyRes = await fetch(`${API_URL}/push/public-key`);
+        const keyData = await keyRes.json();
+        if (!keyData.success) throw new Error(keyData.message);
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlABytes(keyData.publicKey) });
+        const res = await fetch(`${API_URL}/push/subscription`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub.toJSON())
+        });
+        const data = await res.json();
+        if (!data.success) {
+          await sub.unsubscribe();
+          throw new Error(data.message);
+        }
+        showToast('Avisos activados en este dispositivo.');
+      } catch (e) {
+        alert('No se pudieron activar los avisos: ' + e.message);
+      } finally {
+        actualizarEstadoAvisos();
+      }
+    }
+
+    async function probarAviso() {
+      try {
+        const res = await fetch(`${API_URL}/push/test`, { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message);
+        showToast(data.data.sent ? 'Aviso enviado: debería aparecer en unos segundos.' : 'No hay dispositivos activos para tu cuenta.');
+      } catch (e) {
+        alert('No se pudo enviar el aviso de prueba: ' + e.message);
+      }
+    }
+  </script>
+
+  <!-- PWA: registro del Service Worker, instalación y aviso de versión nueva -->
+  <script>
+    (function () {
+      const swSupported = 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+      let deferredInstall = null;
+
+      // "Instalar app": Chrome/Edge/Android avisan con beforeinstallprompt; en iPhone se instala desde Compartir.
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredInstall = e;
+        document.getElementById('btnInstall')?.classList.remove('hidden');
+      });
+      window.addEventListener('appinstalled', () => {
+        deferredInstall = null;
+        document.getElementById('btnInstall')?.classList.add('hidden');
+        if (typeof showToast === 'function') showToast('Habitat Pro quedó instalada en este dispositivo.');
+      });
+      window.instalarApp = async function () {
+        if (!deferredInstall) return;
+        deferredInstall.prompt();
+        await deferredInstall.userChoice.catch(() => null);
+        deferredInstall = null;
+        document.getElementById('btnInstall')?.classList.add('hidden');
+      };
+
+      if (!swSupported) return;
+
+      function avisarVersionNueva(worker) {
+        if (document.getElementById('updateBar')) return;
+        const bar = document.createElement('div');
+        bar.id = 'updateBar';
+        bar.className = 'update-bar';
+        bar.setAttribute('role', 'status');
+        bar.innerHTML = '<span>Hay una versión nueva de la app.</span><button class="btn" type="button">Actualizar</button>';
+        bar.querySelector('button').onclick = () => worker.postMessage({ type: 'SKIP_WAITING' });
+        document.body.appendChild(bar);
+      }
+
+      window.addEventListener('load', async () => {
+        try {
+          const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+          if (reg.waiting && navigator.serviceWorker.controller) avisarVersionNueva(reg.waiting);
+          reg.addEventListener('updatefound', () => {
+            const worker = reg.installing;
+            worker?.addEventListener('statechange', () => {
+              if (worker.state === 'installed' && navigator.serviceWorker.controller) avisarVersionNueva(worker);
+            });
+          });
+          window.HabitatSW = reg;
+        } catch (err) {
+          console.warn('[PWA] No se pudo registrar el Service Worker:', err.message);
+        }
+      });
+
+      // CU06: al tocar un aviso con la app abierta, el Service Worker pide ir a la sección.
+      navigator.serviceWorker.addEventListener('message', (e) => {
+        if (e.data?.type === 'HABITAT_NAVIGATE' && /#reservas/.test(e.data.url) && typeof navigate === 'function' && window.currentUserReady?.()) navigate('reservas');
+      });
+
+      // Cuando la versión nueva toma el control, se recarga una sola vez.
+      let reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloading || !document.getElementById('updateBar')) return;
+        reloading = true;
+        location.reload();
+      });
+    })();
   </script>
 </body>
 </html>

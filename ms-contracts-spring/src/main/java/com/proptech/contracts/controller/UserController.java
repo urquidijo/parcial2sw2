@@ -32,6 +32,24 @@ public class UserController {
         return ResponseEntity.ok(Map.of("success", true, "count", users.size(), "data", users));
     }
 
+    // Telegram (CU21): el gateway confirma el chat con el código de /start y lo guarda en el perfil de quien llama.
+    @PutMapping("/users/me/telegram")
+    public ResponseEntity<?> linkTelegram(@AuthenticationPrincipal Jwt jwt, @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(Map.of("success", true, "user", userService.linkTelegram(jwt, body == null ? null : body.get("chatId"))));
+    }
+
+    @DeleteMapping("/users/me/telegram")
+    public ResponseEntity<?> unlinkTelegram(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(Map.of("success", true, "user", userService.unlinkTelegram(jwt)));
+    }
+
+    // Destinatarios de las alertas del agente monitor (solo ADMIN, ver SecurityConfig).
+    @GetMapping("/telegram/recipients")
+    public ResponseEntity<?> telegramRecipients() {
+        List<Map<String, String>> recipients = userService.telegramRecipients();
+        return ResponseEntity.ok(Map.of("success", true, "count", recipients.size(), "data", recipients));
+    }
+
     // Clientes para elegir al generar un contrato (Legal) o asignar una visita.
     @GetMapping("/clients")
     public ResponseEntity<?> getClients() {

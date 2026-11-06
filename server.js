@@ -16,7 +16,7 @@ const { AsyncLocalStorage } = require('async_hooks');
 const { createRemoteJWKSet, jwtVerify } = require('jose');
 
 const app = express();
-app.use(cors());
+app.use(cors({ exposedHeaders: ['Idempotent-Replayed', 'X-Habitat-Offline', 'X-Habitat-Saved-At'] }));
 app.use(express.json());
 
 // -------------------------------------------------------------
@@ -32,6 +32,10 @@ const PUBLIC_ROUTES = [
   { method: 'GET', pattern: /^\/api\/health$/ },
   // Gráficos de entrenamiento de los modelos de ML (datos sintéticos): los muestra un <img>, que no envía token
   { method: 'GET', pattern: /^\/api\/ml\/plots\/[\w.-]+$/ },
+  // Revisión programada del agente monitor (CU21): la llama n8n con el secreto del webhook, no con un token
+  { method: 'POST', pattern: /^\/api\/ai\/monitor\/scheduled$/ },
+  // Clave pública VAPID (CU06): el navegador la necesita para suscribirse; no es secreta
+  { method: 'GET', pattern: /^\/api\/push\/public-key$/ },
 ];
 
 app.use('/api', async (req, res, next) => {
@@ -52,6 +56,28 @@ app.use('/api', async (req, res, next) => {
 
   // El token viaja con la petición para que fetchService lo reenvíe a los microservicios (incluida la saga).
   requestContext.run({ authorization: token ? header : null }, next);
+});
+
+// Modelo de lectura (CU19): cualquier escritura que termine bien deja vieja la caché del resumen consolidado.
+const overviewCache = new Map();
+app.use('/api', (req, res, next) => {
+  if (req.method !== 'GET') res.on('finish', () => { if (res.statusCode < 400) overviewCache.clear(); });
+  next();
+});
+
+// Idempotency-Key (Fase 3): la misma reserva, visita, consulta o cobro repetido por mala señal se ejecuta una sola vez.
+const { createIdempotency } = require('./idempotency/middleware');
+const idempotency = createIdempotency({ table: process.env.IDEMPOTENCY_TABLE || 'habitat_idempotency' });
+const IDEMPOTENT_ROUTES = [
+  /^\/api\/reservations$/,                 // CU14 saga de arras
+  /^\/api\/reservations\/[^/]+\/cancel$/,  // CU15 reembolso
+  /^\/api\/appointments$/,                 // CU09 agendar visita
+  /^\/api\/properties\/[^/]+\/inquiries$/, // CU01 consulta
+  /^\/api\/payments$/,                     // CU16 cobro en caja
+];
+app.use('/api', (req, res, next) => {
+  if (req.method === 'POST' && IDEMPOTENT_ROUTES.some((re) => re.test(req.baseUrl + req.path))) return idempotency(req, res, next);
+  return next();
 });
 
 // Servir frontend unificado (mfe-shell)
@@ -424,6 +450,12 @@ app.post('/api/reservations', requireRoles('CLIENTE', 'ADMIN'), async (req, res)
     };
     // CU14: n8n envía la confirmación por Telegram (si el webhook está configurado). Un fallo aquí no revierte la reserva.
     const telegram = await notifyReservationConfirmed(reservation);
+    // CU06: aviso push al cliente (en segundo plano)
+    pushInBackground(clientId, {
+      title: 'Reserva confirmada',
+      body: `${propTitle}: arras de $${Number(amount).toLocaleString('es-BO')} USD cobradas. Tienes 48 h para formalizar el contrato.`,
+      url: '/#reservas', tag: `reserva-${reservation.reservationId}`
+    });
     return res.status(201).json({
       success: true,
       message: 'Reserva procesada exitosamente con el patrón Saga en MongoDB Atlas, Amazon DynamoDB y PostgreSQL Render',
@@ -560,6 +592,12 @@ app.post('/api/reservations/:id/cancel', requireRoles('CLIENTE', 'FINANZAS', 'AD
   ]);
 
   const warnings = [];
+  // CU06: aviso push al titular (útil cuando cancela el cajero)
+  pushInBackground(reservation.userId, {
+    title: 'Reserva cancelada',
+    body: `${reservation.propertyTitle || 'Tu reserva'}: se reembolsaron las arras${refund.data?.amount ? ` ($${Number(refund.data.amount).toLocaleString('es-BO')} USD)` : ''}.`,
+    url: '/#reservas', tag: `reserva-${id}`
+  });
   if (!contract.ok && contract.status !== 404) warnings.push('No se pudo anular el pre-contrato de arras: ' + (contract.data?.message || contract.status));
   if (!release.ok) warnings.push('No se pudo liberar el inmueble: ' + (release.data?.message || release.status));
 
@@ -883,6 +921,85 @@ app.get('/api/commissions/mine', requireRoles('AGENTE'), async (req, res) => {
 // 7. NOTIFICACIONES Y AUTOMATIZACIÓN (N8N)
 // -------------------------------------------------------------
 
+// Vinculación de Telegram (CU21). Un bot solo puede escribir a quien antes le escribió: el empleado abre
+// t.me/<bot>?start=<código>, pulsa "Iniciar" y aquí se lee ese /start con getUpdates para conocer su chat.
+const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const STAFF_ROLES = ['ADMIN', 'AGENTE', 'LEGAL', 'FINANZAS', 'ATENCION'];
+const telegramCodes = new Map();   // código -> { userId, expires }
+const telegramStarts = new Map();  // código -> chatId (leído de Telegram, pendiente de confirmar)
+let telegramOffset = 0;
+let telegramBot = null;
+
+async function telegramApi(method, params = {}) {
+  const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/${method}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!data.ok) throw new Error(data.description || `Telegram respondió HTTP ${res.status}`);
+  return data.result;
+}
+
+// Lee los /start <código> que llegaron al bot y confirma esas actualizaciones.
+async function readTelegramStarts() {
+  const updates = await telegramApi('getUpdates', { offset: telegramOffset, timeout: 0, allowed_updates: ['message'] });
+  for (const update of updates) {
+    telegramOffset = Math.max(telegramOffset, update.update_id + 1);
+    const text = update.message?.text || '';
+    const match = text.match(/^\/start\s+([A-Za-z0-9_-]{8,64})$/);
+    if (match && update.message.chat?.type === 'private') telegramStarts.set(match[1], String(update.message.chat.id));
+  }
+}
+
+app.post('/api/telegram/link', requireRoles(...STAFF_ROLES), async (req, res) => {
+  if (!TELEGRAM_TOKEN) return res.status(503).json({ success: false, message: 'El bot de Telegram no está configurado (TELEGRAM_BOT_TOKEN).' });
+  const me = await callerProfile();
+  if (!me) return res.status(502).json({ success: false, message: 'No se pudo obtener tu perfil desde ms-contracts.' });
+  try {
+    telegramBot = telegramBot || await telegramApi('getMe');
+  } catch (err) {
+    return res.status(502).json({ success: false, message: `No se pudo contactar al bot de Telegram: ${err.message}` });
+  }
+  const now = Date.now();
+  for (const [code, entry] of telegramCodes) if (entry.expires < now) telegramCodes.delete(code);
+  const code = crypto.randomBytes(12).toString('base64url');
+  telegramCodes.set(code, { userId: me.id, expires: now + 10 * 60 * 1000 });
+  return res.json({ success: true, data: { code, link: `https://t.me/${telegramBot.username}?start=${code}`, bot: telegramBot.username, expiresInSeconds: 600 } });
+});
+
+app.post('/api/telegram/link/verify', requireRoles(...STAFF_ROLES), async (req, res) => {
+  const code = String(req.body?.code || '');
+  const entry = telegramCodes.get(code);
+  if (!entry || entry.expires < Date.now()) {
+    return res.status(410).json({ success: false, message: 'El enlace venció. Genera uno nuevo.' });
+  }
+  const me = await callerProfile();
+  if (!me || me.id !== entry.userId) return res.status(403).json({ success: false, message: 'Este código no es tuyo.' });
+  try {
+    if (!telegramStarts.has(code)) await readTelegramStarts();
+  } catch (err) {
+    return res.status(502).json({ success: false, message: `No se pudo leer el bot de Telegram: ${err.message}` });
+  }
+  const chatId = telegramStarts.get(code);
+  if (!chatId) return res.json({ success: true, data: { linked: false } });
+
+  const saved = await fetchService(`${CONTRACTS_SVC}/users/me/telegram`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatId })
+  });
+  if (!saved.ok) return sendResult(res, saved);
+  telegramCodes.delete(code);
+  telegramStarts.delete(code);
+  telegramApi('sendMessage', { chat_id: chatId, text: `✅ Listo, ${me.name}: tu Telegram quedó vinculado a Habitat Pro. Aquí recibirás las alertas que te asigne el Administrador.` }).catch(() => {});
+  return res.json({ success: true, data: { linked: true, user: saved.data.user } });
+});
+
+app.delete('/api/telegram/link', requireRoles(...STAFF_ROLES), async (req, res) => {
+  return passthrough(res, await fetchService(`${CONTRACTS_SVC}/users/me/telegram`, { method: 'DELETE' }));
+});
+
 // CU14: avisa a n8n que se confirmó una reserva; el flujo n8n/habitat_reserva_telegram.json la envía por Telegram.
 // Sin N8N_RESERVATION_WEBHOOK_URL no hace nada. El secreto viaja en X-Habitat-Secret (Header Auth del webhook).
 async function notifyReservationConfirmed(reservation) {
@@ -939,6 +1056,208 @@ app.post('/api/ai/report', requireRoles('ADMIN', 'AGENTE', 'LEGAL', 'FINANZAS', 
   }
 });
 
+// CU21: agente monitor del negocio. Lo dispara n8n cada mañana (cuenta de servicio habitat-monitor) o el
+// Admin con "Revisar ahora". Guarda la revisión (campanita) y la envía por Telegram vía n8n a quienes tienen alertas activas.
+// CU05: respaldo en línea del asistente de ayuda (solo cuando el usuario lo pide y la FAQ local no alcanzó).
+// Límite: 10 preguntas por hora por usuario, para cuidar el costo de la API.
+const { askAssistant } = require('./ai/assistant-agent');
+const ASSISTANT_LIMIT = 10;
+const assistantUsage = new Map(); // sub -> [marcas de tiempo]
+app.post('/api/ai/assistant', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, message: 'Debes iniciar sesión para usar esta función.' });
+  const question = String(req.body?.question || '').trim();
+  if (question.length < 3 || question.length > 400) {
+    return res.status(400).json({ success: false, message: 'Escribe una pregunta de entre 3 y 400 caracteres.' });
+  }
+  const now = Date.now();
+  const recent = (assistantUsage.get(req.user.sub) || []).filter((t) => now - t < 3600 * 1000);
+  if (recent.length >= ASSISTANT_LIMIT) {
+    return res.status(429).json({ success: false, message: 'Llegaste al límite de preguntas al asistente por esta hora. Mientras tanto puedes usar las preguntas frecuentes.' });
+  }
+  recent.push(now);
+  assistantUsage.set(req.user.sub, recent);
+  try {
+    const role = effectiveRole(req.user);
+    const result = await askAssistant(question, role);
+    console.log(`💬 [CU05] (${role}) "${question.slice(0, 60)}" · ${result.uso.input_tokens}+${result.uso.output_tokens} tokens`);
+    return res.json({ success: true, data: { answer: result.answer, remaining: ASSISTANT_LIMIT - recent.length } });
+  } catch (err) {
+    if (err instanceof ReportError) return res.status(err.status).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: 'No se pudo consultar al asistente.' });
+  }
+});
+
+const { runMonitor, telegramText } = require('./ai/monitor-agent');
+
+async function notifyMonitorTelegram(report, chats) {
+  const url = process.env.N8N_MONITOR_WEBHOOK_URL;
+  if (!url || !chats.length || !report.alertas.length) return 0;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (process.env.N8N_WEBHOOK_SECRET) headers['X-Habitat-Secret'] = process.env.N8N_WEBHOOK_SECRET;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ texto: telegramText(report), chats: chats.map((c) => ({ chatId: c.chatId, nombre: c.name })) }),
+      signal: controller.signal
+    });
+    return res.ok ? chats.length : 0;
+  } catch (err) {
+    console.warn(`⚠️ [CU21] No se pudo avisar a n8n: ${err.message}`);
+    return 0;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+app.post('/api/ai/monitor', requireRoles('ADMIN'), (req, res) => monitorAndStore(res, 'MANUAL', req.headers.authorization));
+
+// Revisión programada: la dispara n8n cada mañana. n8n no maneja credenciales de Keycloak: se autentica con el
+// secreto del webhook y el gateway pide el token de la cuenta de servicio habitat-monitor (rol ADMIN).
+app.post('/api/ai/monitor/scheduled', async (req, res) => {
+  const secret = process.env.N8N_WEBHOOK_SECRET;
+  const given = String(req.headers['x-habitat-secret'] || '');
+  if (!secret || given.length !== secret.length || !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(secret))) {
+    return res.status(401).json({ success: false, message: 'Secreto inválido.' });
+  }
+  if (!process.env.KEYCLOAK_MONITOR_CLIENT_SECRET) {
+    return res.status(503).json({ success: false, message: 'Falta KEYCLOAK_MONITOR_CLIENT_SECRET en el .env del gateway.' });
+  }
+  try {
+    const authorization = await serviceAuthorization();
+    return requestContext.run({ authorization }, () => monitorAndStore(res, 'PROGRAMADO', authorization));
+  } catch (err) {
+    return res.status(502).json({ success: false, message: err.message });
+  }
+});
+
+// Token de la cuenta de servicio habitat-monitor (rol ADMIN, client credentials). Se reutiliza hasta 30 s antes de vencer.
+// Lo usan las tareas sin usuario: el monitor programado (CU21) y las notificaciones push (CU06).
+let serviceToken = { value: null, expires: 0 };
+async function serviceAuthorization() {
+  if (serviceToken.value && Date.now() < serviceToken.expires - 30000) return serviceToken.value;
+  if (!process.env.KEYCLOAK_MONITOR_CLIENT_SECRET) throw new Error('Falta KEYCLOAK_MONITOR_CLIENT_SECRET en el .env del gateway.');
+  let data;
+  try {
+    const tokenRes = await fetch(`${KEYCLOAK_ISSUER}/protocol/openid-connect/token`, {
+      method: 'POST',
+      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: 'habitat-monitor', client_secret: process.env.KEYCLOAK_MONITOR_CLIENT_SECRET })
+    });
+    data = await tokenRes.json();
+  } catch (err) {
+    throw new Error(`No se pudo contactar a Keycloak: ${err.message}`);
+  }
+  if (!data.access_token) throw new Error('Keycloak no entregó el token de la cuenta de servicio habitat-monitor.');
+  serviceToken = { value: `Bearer ${data.access_token}`, expires: Date.now() + (data.expires_in || 60) * 1000 };
+  return serviceToken.value;
+}
+
+// -------------------------------------------------------------
+// NOTIFICACIONES PUSH (CU06): avisos de reservas al celular o la PC del cliente, aunque la app esté cerrada
+// -------------------------------------------------------------
+const { createPush } = require('./push/notify');
+const push = createPush({ contractsSvc: CONTRACTS_SVC, serviceAuthorization });
+
+app.get('/api/push/public-key', (req, res) => {
+  if (!push.enabled) return res.status(503).json({ success: false, message: 'Las notificaciones no están configuradas en el servidor.' });
+  return res.json({ success: true, publicKey: push.publicKey });
+});
+
+// El dispositivo queda a nombre de quien llama (ms-contracts lo toma del token).
+app.post('/api/push/subscription', async (req, res) => {
+  return passthrough(res, await fetchService(`${CONTRACTS_SVC}/users/me/push`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint: req.body?.endpoint, keys: req.body?.keys, userAgent: String(req.headers['user-agent'] || '').slice(0, 300) })
+  }));
+});
+
+app.delete('/api/push/subscription', async (req, res) => {
+  return passthrough(res, await fetchService(`${CONTRACTS_SVC}/users/me/push?endpoint=${enc(String(req.query.endpoint || ''))}`, { method: 'DELETE' }));
+});
+
+// Aviso de prueba al propio usuario (botón "Probar aviso").
+app.post('/api/push/test', async (req, res) => {
+  const me = await callerProfile();
+  if (!me) return res.status(502).json({ success: false, message: 'No se pudo obtener tu perfil.' });
+  const result = await push.sendToUser(me.id, { title: 'Habitat Pro', body: 'Los avisos están activos en este dispositivo.', url: '/', tag: 'habitat-test' });
+  return res.json({ success: true, data: result });
+});
+
+// Un aviso que falla nunca frena la operación que lo originó: se envía en segundo plano.
+function pushInBackground(userId, payload) {
+  push.sendToUser(userId, payload)
+    .then((r) => { if (r.sent) console.log(`🔔 [CU06] "${payload.title}" enviado a ${r.sent} dispositivo(s)`); })
+    .catch(() => {});
+}
+
+// Recordatorio: reservas activas a las que les quedan menos de 6 h (una sola vez por reserva).
+const remindedReservations = new Set();
+async function remindExpiringReservations() {
+  if (!push.enabled || !process.env.KEYCLOAK_MONITOR_CLIENT_SECRET) return;
+  try {
+    const authorization = await serviceAuthorization();
+    const res = await fetch(`${BILLING_SVC}/billing/reservations`, { headers: { Authorization: authorization } });
+    const body = await res.json().catch(() => ({}));
+    const list = Array.isArray(body.data) ? body.data : [];
+    for (const r of list) {
+      const id = r.reservationId || r.id;
+      const hours = (new Date(r.expires_at).getTime() - Date.now()) / 36e5;
+      if (r.status !== 'ACTIVA' || !(hours > 0 && hours < 6) || remindedReservations.has(id)) continue;
+      remindedReservations.add(id);
+      pushInBackground(r.userId, {
+        title: 'Tu reserva está por vencer',
+        body: `Quedan ${Math.max(1, Math.round(hours))} h para formalizar el contrato de ${r.propertyTitle || 'tu inmueble'}.`,
+        url: '/#reservas', tag: `reserva-${id}`
+      });
+    }
+  } catch (err) {
+    console.warn(`[push] No se pudieron revisar las reservas por vencer: ${err.message}`);
+  }
+}
+setInterval(remindExpiringReservations, 30 * 60 * 1000).unref();
+setTimeout(remindExpiringReservations, 20 * 1000).unref();
+
+async function monitorAndStore(res, trigger, authorization) {
+  let report;
+  try {
+    report = await runMonitor(authorization);
+  } catch (err) {
+    if (err instanceof ReportError) return res.status(err.status).json({ success: false, message: err.message });
+    console.error('[CU21] Error en el agente monitor:', err);
+    return res.status(500).json({ success: false, message: 'No se pudo completar la revisión.' });
+  }
+
+  const recipientsRes = await fetchService(`${CONTRACTS_SVC}/telegram/recipients`);
+  const chats = recipientsRes.ok ? (recipientsRes.data?.data || []) : [];
+  const notified = await notifyMonitorTelegram(report, chats);
+
+  const saved = await fetchService(`${CONTRACTS_SVC}/monitor/reports`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      trigger,
+      summary: report.resumen,
+      alerts: report.alertas,
+      model: report.modelo,
+      inputTokens: report.uso.input_tokens,
+      outputTokens: report.uso.output_tokens,
+      notifiedChats: notified
+    })
+  });
+  console.log(`🛎️ [CU21] Revisión ${trigger}: ${report.alertas.length} alerta(s) · Telegram a ${notified} chat(s) · ${report.consultas.join(', ')} · ${report.uso.input_tokens}+${report.uso.output_tokens} tokens`);
+  if (!saved.ok) return sendResult(res, saved);
+  return res.json({ success: true, data: { ...saved.data.data, consultas: report.consultas, telegram: { destinatarios: chats.length, enviados: notified } } });
+}
+
+// Campanita: últimas revisiones del agente (personal interno)
+app.get('/api/monitor/reports', requireRoles(...STAFF_ROLES), async (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+  return passthrough(res, await fetchService(`${CONTRACTS_SVC}/monitor/reports?limit=${limit}`));
+});
+
 // -------------------------------------------------------------
 // 8b. MACHINE LEARNING (ms-ml-python): CU03 precio y CU13 segmentos
 // -------------------------------------------------------------
@@ -958,6 +1277,11 @@ app.post('/api/ml/predict-price', requireRoles('AGENTE', 'ADMIN'), async (req, r
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req.body)
   }));
+});
+
+// Ciudades y zonas del modelo de precios (listas desplegables del formulario de inmuebles)
+app.get('/api/ml/locations', requireRoles('ADMIN', 'AGENTE', 'LEGAL', 'FINANZAS', 'ATENCION'), async (req, res) => {
+  return mlResult(res, await fetchService(`${ML_SVC}/locations`));
 });
 
 app.get('/api/ml/models', requireRoles('ADMIN', 'AGENTE', 'LEGAL', 'FINANZAS', 'ATENCION'), async (req, res) => {
@@ -1046,11 +1370,85 @@ app.get('/api/ml/client-segments', requireRoles('ADMIN'), async (req, res) => {
 // 9. HEALTH CHECK DISTRIBUIDO DEL SISTEMA
 // -------------------------------------------------------------
 
+// -------------------------------------------------------------
+// MODELO DE LECTURA CONSOLIDADO (CU19 dashboard, CU20 reportes, CU21 monitor)
+// Lado de lectura de CQRS: cruza MongoDB + PostgreSQL + DynamoDB en un solo resumen, en memoria 60 s.
+// -------------------------------------------------------------
+const { buildOverview } = require('./bi/read-model');
+const OVERVIEW_TTL_MS = 60 * 1000;
+
+app.get('/api/bi/overview', requireRoles('ADMIN', 'FINANZAS'), async (req, res) => {
+  const key = effectiveRole(req.user);
+  const cached = overviewCache.get(key);
+  if (cached && req.query.fresh !== '1' && Date.now() - cached.at < OVERVIEW_TTL_MS) {
+    return res.json({ success: true, cached: true, data: cached.data });
+  }
+
+  const sources = {
+    properties: fetchService(PROPERTIES_SVC),
+    appointments: fetchService(`${CONTRACTS_SVC}/appointments`),
+    reservations: fetchService(`${BILLING_SVC}/billing/reservations`),
+    contracts: fetchService(`${CONTRACTS_SVC}/contracts`),
+    finances: fetchService(`${BILLING_SVC}/finances`),
+    commissions: fetchService(`${BILLING_SVC}/commissions`),
+    inquiries: fetchService(INQUIRIES_SVC)
+  };
+  const names = Object.keys(sources);
+  const results = Object.fromEntries((await Promise.all(Object.values(sources))).map((r, i) => [names[i], r]));
+  const okList = (r) => (r.ok ? asList(r) : null);   // null = el servicio no respondió (la sección sale vacía)
+  const finances = results.finances.ok ? (results.finances.data?.data || results.finances.data) : null;
+
+  const data = buildOverview({
+    properties: okList(results.properties),
+    appointments: okList(results.appointments),
+    reservations: okList(results.reservations),
+    contracts: okList(results.contracts),
+    payments: finances ? finances.payments || [] : null,
+    commissions: okList(results.commissions),
+    inquiries: okList(results.inquiries)
+  });
+  overviewCache.set(key, { at: Date.now(), data });
+  return res.json({ success: true, cached: false, data });
+});
+
+// -------------------------------------------------------------
+// ARQUITECTURA (modo demo): qué patrón usa cada pieza. Cada microservicio describe sus capas.
+// -------------------------------------------------------------
+const GATEWAY_ARCHITECTURE = {
+  service: 'api-gateway',
+  technology: 'Node.js (Express) + BFF GraphQL + servidor MCP',
+  architecture: 'API Gateway + Saga orquestada + CQRS (lectura)',
+  boundedContext: 'Puerta única del sistema',
+  layers: [
+    { name: 'Saga orquestada', path: 'server.js · POST /api/reservations', items: ['Bloquea el inmueble (ms-properties) → cobra las arras (ms-billing) → pre-contrato (ms-contracts)', 'Si un paso falla, compensa en orden inverso (reembolso y liberación)'] },
+    { name: 'CQRS: modelo de lectura', path: 'bi/read-model.js · GET /api/bi/overview', items: ['Cruza MongoDB + PostgreSQL + DynamoDB en un solo resumen para el dashboard, los reportes y el monitor'] },
+    { name: 'Idempotencia', path: 'idempotency/middleware.js', items: ['Idempotency-Key con registro en DynamoDB (TTL 24 h): un reintento no duplica reservas ni cobros'] },
+    { name: 'BFF GraphQL', path: 'bff-graphql-gateway/', items: ['El ERP Angular consulta contratos, visitas y empleados en una sola petición'] },
+    { name: 'IA', path: 'ai/ + mcp-habitat-server/', items: ['Reportes (CU20), monitor (CU21) y asistente (CU05) con Claude; herramientas MCP de solo lectura'] },
+  ],
+};
+
+app.get('/api/architecture', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, message: 'Debes iniciar sesión para usar esta función.' });
+  const describe = async (url, fallback) => {
+    const r = await fetchService(url);
+    return r.ok ? r.data : { ...fallback, unavailable: true };
+  };
+  const [properties, contracts, billing] = await Promise.all([
+    describe(PROPERTIES_SVC.replace(/\/properties$/, '/architecture'), { service: 'ms-properties', architecture: 'DDD' }),
+    describe(`${CONTRACTS_SVC}/architecture`, { service: 'ms-contracts', architecture: 'Hexagonal' }),
+    describe(`${BILLING_SVC}/architecture`, { service: 'ms-billing', architecture: 'Clean Architecture' }),
+  ]);
+  return res.json({ success: true, data: [GATEWAY_ARCHITECTURE, properties, contracts, billing] });
+});
+
 app.get('/api/health', async (req, res) => {
+  // Un 401/403 sin sesión también prueba que el servicio está arriba (responde y exige token).
+  const alive = (r) => r.ok || r.status === 401 || r.status === 403;
   const [propsHealth, contractsHealth, billingHealth] = await Promise.all([
-    fetchService(PROPERTIES_SVC).then(r => r.ok),
-    fetchService(`${CONTRACTS_SVC}/contracts`).then(r => r.ok),
-    fetchService(`${BILLING_SVC}/health`).then(r => r.ok)
+    fetchService(PROPERTIES_SVC).then(alive),
+    fetchService(`${CONTRACTS_SVC}/contracts`).then(alive),
+    fetchService(`${BILLING_SVC}/health`).then(alive)
   ]);
 
   return res.json({

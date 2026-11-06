@@ -50,6 +50,12 @@ public class EmployeeController {
         return ResponseEntity.ok(Map.of("success", true, "data", employeeService.setActive(id, false)));
     }
 
+    @PatchMapping("/{id}/telegram-alerts")
+    public ResponseEntity<?> telegramAlerts(@PathVariable String id, @RequestBody Map<String, Boolean> body) {
+        boolean enabled = body != null && Boolean.TRUE.equals(body.get("enabled"));
+        return ResponseEntity.ok(Map.of("success", true, "data", employeeService.setTelegramAlerts(id, enabled)));
+    }
+
     @PostMapping("/{id}/activate")
     public ResponseEntity<?> activate(@PathVariable String id) {
         return ResponseEntity.ok(Map.of("success", true, "data", employeeService.setActive(id, true)));

@@ -30,6 +30,25 @@ Prueba: reservar un inmueble como `juan.comprador`. El mensaje llega al chat y e
 
 > Por ahora todas las confirmaciones van a un solo chat (`TELEGRAM_CHAT_ID`, por ejemplo el celular de la demo o un grupo del equipo). Para que cada cliente reciba la suya, habría que guardar su `chat_id` cuando escriba `/start` al bot.
 
+## CU21 — Agente monitor del negocio (`habitat_monitor_cu21.json`)
+
+Dos caminos en el mismo flujo:
+
+```
+A) Cada mañana 08:00 ──► POST {HABITAT_API_URL}/ai/monitor/scheduled (header X-Habitat-Secret)
+       el gateway pide el token de la cuenta de servicio habitat-monitor, corre el agente (Claude Haiku + MCP),
+       guarda la revisión (campanita) y llama al camino B
+B) POST /webhook/habitat-monitor-alertas ──► un mensaje por destinatario ──► Telegram
+       destinatarios = empleados con Telegram vinculado y "Recibe alertas" activado (pantalla Empleados)
+```
+
+El Admin también puede disparar la revisión con **"Revisar ahora"** en la campanita (usa su propio token).
+
+### Ponerlo a andar
+1. Variables en el `.env` de la raíz: `KEYCLOAK_MONITOR_CLIENT_SECRET` (un secreto largo al azar) y `N8N_MONITOR_WEBHOOK_URL`.
+2. Crear la cuenta de servicio en Keycloak (una vez): `node keycloak/add-monitor-client.js`. En un Keycloak nuevo se importa sola desde `keycloak/habitat-realm.json`.
+3. `docker compose up -d n8n-automation` (toma `HABITAT_API_URL`), importar `n8n/habitat_monitor_cu21.json` con las mismas 2 credenciales de CU14 y activarlo.
+
 ## Flujo anterior (`../n8n_proptech_workflow.json`)
 
 Es el flujo original de WhatsApp → saga → correo. Llama al gateway **sin token**, así que desde la Fase 0 (SSO) recibe 401. Se arreglará cuando n8n tenga su cuenta de servicio en Keycloak (CU20 / CU21).

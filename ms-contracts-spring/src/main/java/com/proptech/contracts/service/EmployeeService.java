@@ -68,6 +68,17 @@ public class EmployeeService {
         return userRepository.save(employee);
     }
 
+    // CU21: el Administrador decide qué empleados reciben las alertas del agente monitor por Telegram.
+    @Transactional
+    public User setTelegramAlerts(String id, boolean enabled) {
+        User employee = findEmployee(id);
+        if (enabled && !employee.isTelegramLinked()) {
+            throw new IllegalStateException(employee.getName() + " aún no vinculó su Telegram: debe pulsar \"Conectar Telegram\" en su cuenta.");
+        }
+        employee.setTelegramAlerts(enabled);
+        return userRepository.save(employee);
+    }
+
     private User findEmployee(String id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Empleado no encontrado: " + id));

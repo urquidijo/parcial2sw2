@@ -25,7 +25,7 @@ from fastapi.responses import FileResponse  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 from ml import train  # noqa: E402
-from ml.data import SEGMENT_FEATURES, canonical_location  # noqa: E402
+from ml.data import SEGMENT_FEATURES, ZONE_PRICE_M2, canonical_location  # noqa: E402
 
 ARTIFACTS = train.ARTIFACTS
 ISSUER = os.environ.get("KEYCLOAK_ISSUER_URI", "http://localhost:8080/realms/habitat")
@@ -159,6 +159,14 @@ def models(role: str = Depends(current_role)):
     if role not in STAFF:
         raise HTTPException(403, "Solo personal interno")
     return METRICS
+
+
+@app.get("/api/v1/ml/locations")
+def locations(role: str = Depends(current_role)):
+    """Ciudades y zonas que conoce el modelo de precios: el formulario de inmuebles las ofrece en listas desplegables."""
+    if role not in STAFF:
+        raise HTTPException(403, "Solo personal interno")
+    return {"ciudades": {city: sorted(zones) for city, zones in ZONE_PRICE_M2.items()}}
 
 
 PLOTS = {"cu03_precio.png", "cu13_segmentos.png"}

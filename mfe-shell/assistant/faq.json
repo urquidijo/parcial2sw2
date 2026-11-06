@@ -1,0 +1,669 @@
+{
+  "version": 1,
+  "nota": "CU05: base de conocimiento del asistente. roles: CLIENTE, AGENTE, LEGAL, FINANZAS, ATENCION, ADMIN o TODOS. accion.tipo: vista (navigate) o funcion. Tras editar, regenerar los vectores con tools/faq-embeddings (npm run build).",
+  "entradas": [
+    {
+      "id": "buscar-inmueble",
+      "roles": [
+        "TODOS"
+      ],
+      "pregunta": "¿Cómo busco un inmueble?",
+      "variantes": [
+        "buscar departamento",
+        "filtrar casas por ciudad",
+        "ver inmuebles disponibles",
+        "busco una casa en Santa Cruz",
+        "como encuentro un terreno barato"
+      ],
+      "respuesta": "En Inmuebles usa el buscador y los filtros de ciudad, tipo, precio y dormitorios. También puedes ver los inmuebles en el mapa y buscar los que están cerca de un punto.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "catalogo",
+        "etiqueta": "Ir a Inmuebles"
+      }
+    },
+    {
+      "id": "ver-ficha",
+      "roles": [
+        "TODOS"
+      ],
+      "pregunta": "¿Cómo veo los detalles de un inmueble?",
+      "variantes": [
+        "ver fotos del inmueble",
+        "ficha del departamento",
+        "cuantos dormitorios tiene",
+        "ubicacion en el mapa",
+        "ver mas informacion de una casa"
+      ],
+      "respuesta": "En Inmuebles toca la tarjeta del inmueble: se abre la ficha con fotos, superficie, ambientes, comodidades, precio y su ubicación en el mapa.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "catalogo",
+        "etiqueta": "Ir a Inmuebles"
+      }
+    },
+    {
+      "id": "consultar-asesor",
+      "roles": [
+        "CLIENTE"
+      ],
+      "pregunta": "¿Cómo le hago una pregunta al asesor sobre un inmueble?",
+      "variantes": [
+        "enviar consulta",
+        "preguntar por un departamento",
+        "contactar al agente",
+        "hablar con el vendedor",
+        "tengo una duda sobre una casa"
+      ],
+      "respuesta": "Abre la ficha del inmueble y usa \"Consultar al asesor\". La respuesta te llega en \"Mis consultas\". Si estás sin conexión, la consulta se guarda y se envía sola al volver la señal.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "catalogo",
+        "etiqueta": "Ir a Inmuebles"
+      }
+    },
+    {
+      "id": "agendar-visita",
+      "roles": [
+        "CLIENTE"
+      ],
+      "pregunta": "¿Cómo agendo una visita?",
+      "variantes": [
+        "quiero ver el departamento en persona",
+        "programar una cita",
+        "visitar una casa",
+        "reservar hora para conocer el inmueble",
+        "visita virtual"
+      ],
+      "respuesta": "En la ficha del inmueble toca \"Agendar visita\", elige fecha, hora y si es presencial o virtual. El asesor te contacta para confirmar. Funciona incluso sin conexión: se envía al volver la señal.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "catalogo",
+        "etiqueta": "Ir a Inmuebles"
+      }
+    },
+    {
+      "id": "mis-visitas",
+      "roles": [
+        "CLIENTE"
+      ],
+      "pregunta": "¿Dónde veo mis visitas agendadas?",
+      "variantes": [
+        "mis citas",
+        "cuando es mi visita",
+        "ver la visita que pedi",
+        "cancelar una visita"
+      ],
+      "respuesta": "En Visitas ves tus visitas con fecha, hora, estado y el asesor a cargo.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "citas",
+        "etiqueta": "Ir a Visitas"
+      }
+    },
+    {
+      "id": "reservar",
+      "roles": [
+        "CLIENTE"
+      ],
+      "pregunta": "¿Cómo reservo un inmueble?",
+      "variantes": [
+        "apartar un departamento",
+        "pagar arras",
+        "quiero reservar esta casa",
+        "como separo un inmueble",
+        "pagar la seña"
+      ],
+      "respuesta": "En la ficha toca \"Reservar con arras\" y paga las arras (la seña). El inmueble queda apartado 48 h para ti mientras se prepara el contrato. Reservar necesita conexión a internet.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "catalogo",
+        "etiqueta": "Ir a Inmuebles"
+      }
+    },
+    {
+      "id": "que-son-arras",
+      "roles": [
+        "TODOS"
+      ],
+      "pregunta": "¿Qué son las arras?",
+      "variantes": [
+        "para que sirve la seña",
+        "cuanto cuesta reservar",
+        "deposito de reserva",
+        "monto de arras"
+      ],
+      "respuesta": "Las arras son un pago inicial que aparta el inmueble por 48 h. Si se firma el contrato, se descuentan del precio; si cancelas la reserva, se reembolsan.",
+      "accion": null
+    },
+    {
+      "id": "mis-reservas",
+      "roles": [
+        "CLIENTE"
+      ],
+      "pregunta": "¿Dónde veo mis reservas?",
+      "variantes": [
+        "estado de mi reserva",
+        "cuando vence mi reserva",
+        "ver lo que reserve",
+        "reserva activa"
+      ],
+      "respuesta": "En Mis reservas ves cada reserva con el monto de las arras, su estado y cuánto falta para que venza.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "reservas",
+        "etiqueta": "Ir a Mis reservas"
+      }
+    },
+    {
+      "id": "cancelar-reserva",
+      "roles": [
+        "CLIENTE",
+        "FINANZAS",
+        "ADMIN"
+      ],
+      "pregunta": "¿Cómo cancelo una reserva y recupero las arras?",
+      "variantes": [
+        "anular reserva",
+        "devolucion de las arras",
+        "reembolso",
+        "ya no quiero el departamento",
+        "me arrepenti de reservar",
+        "me devuelven el dinero si cancelo la reserva",
+        "recuperar la plata de las arras"
+      ],
+      "respuesta": "En Reservas toca \"Cancelar y reembolsar\" en la reserva activa y confirma. Las arras se reembolsan, el pre-contrato se anula y el inmueble vuelve a estar disponible.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "reservas",
+        "etiqueta": "Ir a Reservas"
+      }
+    },
+    {
+      "id": "avisos-push",
+      "roles": [
+        "CLIENTE"
+      ],
+      "pregunta": "¿Cómo recibo avisos de mi reserva en el celular?",
+      "variantes": [
+        "notificaciones",
+        "activar alertas",
+        "avisame cuando se confirme",
+        "no me llegan los avisos",
+        "notificacion push"
+      ],
+      "respuesta": "En Mis reservas toca \"Activar avisos\" y acepta el permiso. Te avisamos cuando tu reserva se confirme, se cancele o esté por vencer, aunque la app esté cerrada. En iPhone primero instala la app en la pantalla de inicio.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "reservas",
+        "etiqueta": "Ir a Mis reservas"
+      }
+    },
+    {
+      "id": "firmar-contrato",
+      "roles": [
+        "CLIENTE"
+      ],
+      "pregunta": "¿Cómo firmo mi contrato?",
+      "variantes": [
+        "firma digital",
+        "firmar en linea",
+        "donde esta mi contrato",
+        "aceptar el contrato de compra",
+        "firmar alquiler"
+      ],
+      "respuesta": "En Mis contratos abre el contrato pendiente, revisa las cláusulas y toca \"Firmar\". La firma queda registrada con fecha y hora. Firmar necesita conexión.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "contratos",
+        "etiqueta": "Ir a Mis contratos"
+      }
+    },
+    {
+      "id": "pagar-saldo",
+      "roles": [
+        "CLIENTE"
+      ],
+      "pregunta": "¿Cómo pago el saldo o la cuota del alquiler?",
+      "variantes": [
+        "pagar el resto del precio",
+        "pago mensual del alquiler",
+        "donde pago la cuota",
+        "saldo de la compra"
+      ],
+      "respuesta": "El saldo de compra y las cuotas de alquiler se pagan en caja de la inmobiliaria; el cajero lo registra y lo ves reflejado en tu contrato.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "contratos",
+        "etiqueta": "Ir a Mis contratos"
+      }
+    },
+    {
+      "id": "sin-conexion",
+      "roles": [
+        "TODOS"
+      ],
+      "pregunta": "¿Puedo usar la app sin internet?",
+      "variantes": [
+        "modo sin conexion",
+        "no tengo señal",
+        "offline",
+        "funciona sin datos",
+        "estoy en un sotano sin internet"
+      ],
+      "respuesta": "Sí: ves el catálogo guardado y puedes agendar visitas o enviar consultas; se envían solas al volver la señal. Reservar, pagar y firmar necesitan conexión.",
+      "accion": null
+    },
+    {
+      "id": "pendientes",
+      "roles": [
+        "TODOS"
+      ],
+      "pregunta": "¿Qué es el botón Pendientes?",
+      "variantes": [
+        "acciones sin enviar",
+        "se envio mi visita",
+        "cola sin conexion",
+        "cosas guardadas sin internet"
+      ],
+      "respuesta": "Son acciones que guardaste sin conexión (visitas o consultas). Se envían solas al volver la señal; ahí puedes verlas, enviarlas ahora o descartarlas.",
+      "accion": {
+        "tipo": "funcion",
+        "valor": "abrirPendientes",
+        "etiqueta": "Ver pendientes"
+      }
+    },
+    {
+      "id": "instalar-app",
+      "roles": [
+        "TODOS"
+      ],
+      "pregunta": "¿Cómo instalo la app en mi celular?",
+      "variantes": [
+        "descargar la aplicacion",
+        "agregar a pantalla de inicio",
+        "app movil",
+        "instalar en android",
+        "instalar en iphone"
+      ],
+      "respuesta": "En Android o en la PC toca \"Instalar app\" en el encabezado (o el menú del navegador → Instalar). En iPhone, en Safari toca Compartir y luego \"Agregar a pantalla de inicio\".",
+      "accion": {
+        "tipo": "funcion",
+        "valor": "instalarApp",
+        "etiqueta": "Instalar app"
+      }
+    },
+    {
+      "id": "cuenta",
+      "roles": [
+        "TODOS"
+      ],
+      "pregunta": "¿Cómo creo una cuenta o cambio mi contraseña?",
+      "variantes": [
+        "registrarme",
+        "olvide mi contraseña",
+        "iniciar sesion",
+        "cerrar sesion",
+        "crear usuario"
+      ],
+      "respuesta": "En la pantalla de inicio usa \"Crear cuenta de cliente\". Con la misma cuenta entras al portal, al dashboard y a la app móvil. Para cerrar sesión usa el botón del encabezado.",
+      "accion": null
+    },
+    {
+      "id": "publicar-inmueble",
+      "roles": [
+        "AGENTE",
+        "ADMIN"
+      ],
+      "pregunta": "¿Cómo publico un inmueble nuevo?",
+      "variantes": [
+        "registrar inmueble",
+        "cargar una casa para vender",
+        "agregar departamento en alquiler",
+        "subir propiedad",
+        "nueva publicacion"
+      ],
+      "respuesta": "En Inmuebles toca \"Publicar inmueble\", completa la ficha (tipo, ubicación en el mapa, superficie, ambientes, precio) y sube las fotos.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "catalogo",
+        "etiqueta": "Ir a Inmuebles"
+      }
+    },
+    {
+      "id": "estimar-precio",
+      "roles": [
+        "AGENTE",
+        "ADMIN"
+      ],
+      "pregunta": "¿Cómo sé a qué precio publicar?",
+      "variantes": [
+        "estimar precio",
+        "precio sugerido",
+        "cuanto vale este departamento",
+        "tasacion",
+        "precio de mercado"
+      ],
+      "respuesta": "En el formulario de publicar o editar toca \"Estimar precio\": el modelo sugiere un precio y un rango probable según la zona, el tipo, la superficie y los ambientes. Puedes usarlo con un clic.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "catalogo",
+        "etiqueta": "Ir a Inmuebles"
+      }
+    },
+    {
+      "id": "autocompletar-fotos",
+      "roles": [
+        "AGENTE",
+        "ADMIN"
+      ],
+      "pregunta": "¿Cómo lleno la ficha a partir de las fotos?",
+      "variantes": [
+        "autocompletar desde fotos",
+        "detectar dormitorios en las fotos",
+        "reconocer ambientes",
+        "subir fotos y completar datos"
+      ],
+      "respuesta": "En el formulario toca \"Autocompletar desde fotos\" y elige las fotos: el sistema detecta camas, baños, cocina o autos y sugiere dormitorios, baños, parqueos y comodidades. Tú confirmas cada sugerencia. Las fotos no salen de tu dispositivo.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "catalogo",
+        "etiqueta": "Ir a Inmuebles"
+      }
+    },
+    {
+      "id": "editar-inmueble",
+      "roles": [
+        "AGENTE",
+        "ADMIN"
+      ],
+      "pregunta": "¿Cómo edito o cambio el estado de un inmueble?",
+      "variantes": [
+        "modificar precio",
+        "editar ficha",
+        "cambiar fotos",
+        "marcar como vendido",
+        "actualizar publicacion"
+      ],
+      "respuesta": "En Inmuebles abre el inmueble y toca \"Editar\": puedes cambiar datos, precio, fotos y estado.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "catalogo",
+        "etiqueta": "Ir a Inmuebles"
+      }
+    },
+    {
+      "id": "responder-consultas",
+      "roles": [
+        "AGENTE",
+        "ATENCION",
+        "ADMIN"
+      ],
+      "pregunta": "¿Dónde respondo las consultas de los clientes?",
+      "variantes": [
+        "preguntas de clientes",
+        "consultas pendientes",
+        "contestar mensajes",
+        "bandeja de consultas"
+      ],
+      "respuesta": "En Inmuebles, sección \"Consultas de clientes\": ves las pendientes con el inmueble y el teléfono, y respondes desde ahí. Conviene responder antes de 24 h.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "catalogo",
+        "etiqueta": "Ir a Inmuebles"
+      }
+    },
+    {
+      "id": "agenda-agente",
+      "roles": [
+        "AGENTE",
+        "ATENCION",
+        "ADMIN"
+      ],
+      "pregunta": "¿Dónde veo mi agenda de visitas?",
+      "variantes": [
+        "visitas de hoy",
+        "confirmar una visita",
+        "marcar visita completada",
+        "agenda del asesor",
+        "citas con clientes"
+      ],
+      "respuesta": "En Visitas ves la agenda con fecha, hora, cliente y teléfono. Desde ahí confirmas, completas o cancelas cada visita.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "citas",
+        "etiqueta": "Ir a Visitas"
+      }
+    },
+    {
+      "id": "mis-comisiones",
+      "roles": [
+        "AGENTE"
+      ],
+      "pregunta": "¿Dónde veo mis comisiones?",
+      "variantes": [
+        "cuanto gane",
+        "comision por venta",
+        "cuando me pagan la comision",
+        "retencion de la comision"
+      ],
+      "respuesta": "En Mis comisiones ves cada comisión: 3 % de la operación menos 13 % de retención, y si ya está pagada o pendiente.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "finanzas",
+        "etiqueta": "Ir a Mis comisiones"
+      }
+    },
+    {
+      "id": "generar-contrato",
+      "roles": [
+        "LEGAL",
+        "ADMIN"
+      ],
+      "pregunta": "¿Cómo genero un contrato de compraventa o alquiler?",
+      "variantes": [
+        "crear contrato",
+        "nuevo contrato de arrendamiento",
+        "promesa de compraventa",
+        "redactar contrato"
+      ],
+      "respuesta": "En Contratos toca \"Generar contrato\", elige el cliente, el inmueble y el tipo (compraventa o arrendamiento); las cláusulas se generan y el cliente lo firma en línea.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "contratos",
+        "etiqueta": "Ir a Contratos"
+      }
+    },
+    {
+      "id": "anular-contrato",
+      "roles": [
+        "LEGAL",
+        "ADMIN"
+      ],
+      "pregunta": "¿Cómo anulo un contrato?",
+      "variantes": [
+        "cancelar contrato",
+        "dejar sin efecto",
+        "contrato con error"
+      ],
+      "respuesta": "En Contratos abre el contrato y toca \"Anular\" indicando el motivo. Queda registrado en el historial.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "contratos",
+        "etiqueta": "Ir a Contratos"
+      }
+    },
+    {
+      "id": "cobrar",
+      "roles": [
+        "FINANZAS",
+        "ADMIN"
+      ],
+      "pregunta": "¿Cómo registro un pago en caja?",
+      "variantes": [
+        "cobrar saldo de compra",
+        "registrar cuota de alquiler",
+        "cobro en caja",
+        "recibir pago del cliente"
+      ],
+      "respuesta": "En Caja verás las operaciones con cobros pendientes: toca \"Cobrar saldo\" o \"Cobrar cuota\", elige el método y confirma.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "finanzas",
+        "etiqueta": "Ir a Caja"
+      }
+    },
+    {
+      "id": "pagar-comision",
+      "roles": [
+        "FINANZAS",
+        "ADMIN"
+      ],
+      "pregunta": "¿Cómo pago la comisión a un agente?",
+      "variantes": [
+        "liquidar comision",
+        "comisiones pendientes",
+        "pagar al asesor"
+      ],
+      "respuesta": "En Caja, pestaña Comisiones, toca \"Liquidar\" en la comisión pendiente e indica la referencia de la transferencia.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "finanzas",
+        "etiqueta": "Ir a Caja"
+      }
+    },
+    {
+      "id": "dashboard",
+      "roles": [
+        "FINANZAS",
+        "ADMIN"
+      ],
+      "pregunta": "¿Dónde veo el resumen del negocio?",
+      "variantes": [
+        "dashboard",
+        "ingresos del mes",
+        "graficos de ventas",
+        "embudo comercial",
+        "indicadores",
+        "resumen financiero"
+      ],
+      "respuesta": "En Dashboard (se abre en otra pestaña con tu misma sesión) tienes ingresos por mes, cartera, embudo de visitas a contratos, agentes con más ventas y pendientes.",
+      "accion": {
+        "tipo": "funcion",
+        "valor": "abrirDashboard",
+        "etiqueta": "Abrir Dashboard"
+      }
+    },
+    {
+      "id": "reportes-ia",
+      "roles": [
+        "AGENTE",
+        "LEGAL",
+        "FINANZAS",
+        "ATENCION",
+        "ADMIN"
+      ],
+      "pregunta": "¿Cómo pido un reporte?",
+      "variantes": [
+        "reporte por voz",
+        "generar informe",
+        "exportar a excel",
+        "preguntarle a la ia por los datos",
+        "reporte de ventas",
+        "cuantas ventas hubo por zona",
+        "datos de inmuebles vendidos por mes",
+        "consultar cifras del negocio"
+      ],
+      "respuesta": "En Reportes escribe o dicta lo que necesitas (por ejemplo \"inmuebles disponibles en Santa Cruz\"). Recibes un resumen y una tabla que puedes exportar a Excel.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "ai",
+        "etiqueta": "Ir a Reportes"
+      }
+    },
+    {
+      "id": "empleados",
+      "roles": [
+        "ADMIN"
+      ],
+      "pregunta": "¿Cómo doy de alta a un empleado?",
+      "variantes": [
+        "nuevo empleado",
+        "cambiar sector",
+        "dar de baja",
+        "gestionar personal",
+        "crear usuario de agente",
+        "incorporar personal al equipo",
+        "sumar un asesor a la empresa",
+        "registrar a un trabajador"
+      ],
+      "respuesta": "En Empleados toca \"Nuevo empleado\", indica nombre, correo y sector (agente, legal, caja o atención). Desde ahí también cambias el sector o das de baja.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "usuarios",
+        "etiqueta": "Ir a Empleados"
+      }
+    },
+    {
+      "id": "segmentos",
+      "roles": [
+        "ADMIN"
+      ],
+      "pregunta": "¿Qué tipo de clientes tengo?",
+      "variantes": [
+        "segmentar clientes",
+        "perfiles de clientes",
+        "inversionistas",
+        "clasificar clientes"
+      ],
+      "respuesta": "En Segmentos cada cliente se clasifica según su actividad (visitas, consultas, reservas y contratos) en Inversionista, Primera vivienda, Inquilino o Curioso.",
+      "accion": {
+        "tipo": "vista",
+        "valor": "segmentos",
+        "etiqueta": "Ir a Segmentos"
+      }
+    },
+    {
+      "id": "alertas-monitor",
+      "roles": [
+        "AGENTE",
+        "LEGAL",
+        "FINANZAS",
+        "ATENCION",
+        "ADMIN"
+      ],
+      "pregunta": "¿Qué es la campanita de alertas?",
+      "variantes": [
+        "alertas del negocio",
+        "revisar ahora",
+        "monitor del negocio",
+        "pendientes urgentes"
+      ],
+      "respuesta": "La campanita muestra la última revisión del negocio: reservas por vencer, contratos sin firmar, cobros atrasados y consultas sin responder, con la acción sugerida. Se revisa cada mañana; el administrador puede pedir \"Revisar ahora\".",
+      "accion": null
+    },
+    {
+      "id": "telegram",
+      "roles": [
+        "AGENTE",
+        "LEGAL",
+        "FINANZAS",
+        "ATENCION",
+        "ADMIN"
+      ],
+      "pregunta": "¿Cómo recibo las alertas por Telegram?",
+      "variantes": [
+        "conectar telegram",
+        "vincular telegram",
+        "alertas al celular",
+        "mensajes del bot"
+      ],
+      "respuesta": "Toca \"Conectar Telegram\" en el encabezado y sigue los pasos (abrir el bot y pulsar Iniciar). Luego el administrador activa \"Recibe alertas\" para ti en Empleados.",
+      "accion": {
+        "tipo": "funcion",
+        "valor": "abrirTelegram",
+        "etiqueta": "Conectar Telegram"
+      }
+    }
+  ]
+}

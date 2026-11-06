@@ -144,6 +144,13 @@ Usuarios demo que crea el realm (contraseña `pass123`, dominio `@habitat.pro`):
 | `CLAUDE_MODEL` | `claude-haiku-5-5` (el más barato) | **Sí** |
 | `MCP_URL` | `https://<servidor-mcp>/mcp` | **Sí** |
 | `ML_SERVICE_URL` | `https://<ms-ml-python>` | **Sí** |
+| `TELEGRAM_BOT_TOKEN` | token del bot (@habitatPro_bot): lo usa el gateway para que cada empleado vincule su Telegram | **Sí** |
+| `KEYCLOAK_MONITOR_CLIENT_SECRET` | secreto de la cuenta de servicio `habitat-monitor` (agente monitor CU21); el mismo en Keycloak | **Sí** |
+| `N8N_MONITOR_WEBHOOK_URL` | `https://<n8n>/webhook/habitat-monitor-alertas` | **Sí** (opcional) |
+
+> **Keycloak en producción:** además de `KEYCLOAK_ADMIN_CLIENT_SECRET`, darle `KEYCLOAK_MONITOR_CLIENT_SECRET` al contenedor (el realm lo usa al importarse). Si Keycloak ya estaba creado, correr `node keycloak/add-monitor-client.js` apuntando a él (`KEYCLOAK_URL`, `KEYCLOAK_CONSOLE_USER`, `KEYCLOAK_CONSOLE_PASSWORD`).
+> **n8n en producción:** variable `HABITAT_API_URL=https://<gateway>/api` e importar también `n8n/habitat_monitor_cu21.json` (ver `n8n/README.md`).
+> **Base de datos:** ms-contracts crea solo la tabla `monitor_reports` y las columnas de Telegram en `users`.
 | `N8N_RESERVATION_WEBHOOK_URL` | `https://<n8n>/webhook/habitat-reserva-confirmada` | **Sí** (opcional) |
 | `N8N_WEBHOOK_SECRET` | secreto largo; el mismo que la credencial de n8n | **Sí** (opcional) |
 
@@ -158,7 +165,7 @@ Sin las variables de n8n la reserva funciona igual; solo no se envía el aviso p
 | Proyecto | Carpeta | Qué revisar |
 |---|---|---|
 | ERP Angular | `mfe-contracts-angular` | Ahora **compila**: *Build Command* `npm run build`, *Output Directory* `dist/browser` (ya está en `vercel.json`; que el panel no lo pise). Node 18 o más. El shell lo carga desde `/main.js` |
-| Catálogo React | `mfe-properties-react` | Sin build; solo redesplegar |
+| Catálogo React | `mfe-properties-react` | Sin build; solo redesplegar. Incluye la carpeta `models/` (modelo de IA de CU04, 4,8 MB): tiene que publicarse junto con `src/` |
 | BI Next | `mfe-bi-next` | Variables: `NEXT_PUBLIC_KEYCLOAK_URL=https://<keycloak>`, `NEXT_PUBLIC_API_URL=https://<gateway>/api`, `NEXT_PUBLIC_SHELL_URL=https://<shell-vercel>` |
 | Shell | `mfe-shell` | Sin build. Las llamadas `/api/*` ya se redirigen al gateway de Railway (`vercel.json`) |
 

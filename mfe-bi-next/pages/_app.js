@@ -69,6 +69,7 @@ export default function MyApp({ Component, pageProps }) {
         .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
         .status-pill.ok { background: var(--emerald-light); color: var(--emerald); }
         .status-pill.bad { background: var(--rose-light); color: var(--rose); }
+        .status-pill.warn { background: var(--amber-light); color: var(--amber); }
         .code { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; background: var(--bg-alt); padding: 0.1rem 0.4rem; border-radius: 4px; }
       `}</style>
       <Component {...pageProps} />

@@ -7,10 +7,11 @@ import { GraphqlService } from './graphql.service';
 import { HabitatUser, notify } from './habitat-bridge';
 import { Employee, SECTOR_LABELS, Sector } from './models';
 
-const EMPLOYEE_FIELDS = 'id name email sector active createdAt';
+const EMPLOYEE_FIELDS = 'id name email sector active createdAt telegramLinked telegramAlerts';
 const EMPLOYEES_QUERY = `query Employees { employees { ${EMPLOYEE_FIELDS} } }`;
 const CREATE_EMPLOYEE = `mutation CreateEmployee($input: CreateEmployeeInput!) { createEmployee(input: $input) { ${EMPLOYEE_FIELDS} } }`;
 const UPDATE_SECTOR = `mutation UpdateSector($id: ID!, $sector: Sector!) { updateEmployeeSector(id: $id, sector: $sector) { id sector } }`;
+const SET_ALERTS = `mutation SetAlerts($id: ID!, $enabled: Boolean!) { setEmployeeTelegramAlerts(id: $id, enabled: $enabled) { id telegramAlerts } }`;
 const SET_ACTIVE = `mutation SetActive($id: ID!, $active: Boolean!) { setEmployeeActive(id: $id, active: $active) { id active } }`;
 
 interface EmployeeForm {
@@ -50,7 +51,7 @@ interface EmployeeForm {
       } @else {
         <div class="data-table-wrapper">
           <table class="data-table">
-            <thead><tr><th>Empleado</th><th>Sector</th><th>Estado</th><th>Alta</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>Empleado</th><th>Sector</th><th>Estado</th><th>Telegram</th><th>Recibe alertas</th><th>Alta</th><th>Acciones</th></tr></thead>
             <tbody>
               @for (e of employees(); track e.id) {
                 <tr>
@@ -61,6 +62,19 @@ interface EmployeeForm {
                     </select>
                   </td>
                   <td><span class="erp-status" [class]="e.active ? 'erp-status ok' : 'erp-status off'">{{ e.active ? 'Activo' : 'Dado de baja' }}</span></td>
+                  <td>
+                    @if (e.telegramLinked) {
+                      <span class="erp-inline"><erp-icon name="CircleCheck" [size]="14" />Vinculado</span>
+                    } @else {
+                      <span class="erp-muted" title="El empleado debe pulsar 'Conectar Telegram' en su cuenta">Sin vincular</span>
+                    }
+                  </td>
+                  <td>
+                    <label class="erp-inline" [title]="e.telegramLinked ? 'Recibe el resumen del agente monitor' : 'Primero debe vincular su Telegram'">
+                      <input type="checkbox" [checked]="e.telegramAlerts" [disabled]="!e.telegramLinked || !e.active || busyId() === e.id" (change)="setAlerts(e, $any($event.target).checked)">
+                      {{ e.telegramAlerts ? 'Sí' : 'No' }}
+                    </label>
+                  </td>
                   <td>{{ e.createdAt | date: 'dd/MM/yyyy' }}</td>
                   <td>
                     <div class="erp-row-actions">
@@ -149,6 +163,21 @@ export class EmployeesViewComponent implements OnChanges {
     try {
       await this.graphql.request(UPDATE_SECTOR, { id: employee.id, sector });
       notify(`${employee.name} ahora es ${SECTOR_LABELS[sector]}. El cambio aplica en su próximo inicio de sesión.`);
+      await this.load();
+    } catch (err) {
+      alert((err as Error).message);
+      await this.load();
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
+  // CU21: quién recibe por Telegram el resumen del agente monitor.
+  async setAlerts(employee: Employee, enabled: boolean): Promise<void> {
+    this.busyId.set(employee.id);
+    try {
+      await this.graphql.request(SET_ALERTS, { id: employee.id, enabled });
+      notify(enabled ? `${employee.name} recibirá las alertas del monitor por Telegram.` : `${employee.name} ya no recibirá las alertas.`);
       await this.load();
     } catch (err) {
       alert((err as Error).message);

@@ -1,5 +1,6 @@
 package com.proptech.contracts.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -42,6 +43,15 @@ public class User {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    // Telegram (CU21): chat al que el bot puede escribirle (el usuario lo vincula con /start) y si recibe las alertas del monitor.
+    // El chat id no se publica en el JSON: solo si está vinculado.
+    @JsonIgnore
+    @Column(name = "telegram_chat_id", length = 40)
+    private String telegramChatId;
+
+    @Column(name = "telegram_alerts")
+    private Boolean telegramAlerts;
 
     public User() {
         this.createdAt = LocalDateTime.now();
@@ -93,4 +103,13 @@ public class User {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    @JsonIgnore
+    public String getTelegramChatId() { return telegramChatId; }
+    public void setTelegramChatId(String telegramChatId) { this.telegramChatId = telegramChatId; }
+
+    public boolean isTelegramLinked() { return telegramChatId != null && !telegramChatId.isBlank(); }
+
+    public boolean isTelegramAlerts() { return Boolean.TRUE.equals(telegramAlerts); }
+    public void setTelegramAlerts(boolean telegramAlerts) { this.telegramAlerts = telegramAlerts; }
 }

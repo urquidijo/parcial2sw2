@@ -1,5 +1,14 @@
 <?php
 
+// Clean Architecture: Domain / Application / Infrastructure / Controllers. Carga automática por namespace.
+spl_autoload_register(function (string $class): void {
+    $prefix = 'PropTech\\Billing\\';
+    if (str_starts_with($class, $prefix)) {
+        $file = __DIR__ . '/../src/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+        if (is_file($file)) require_once $file;
+    }
+});
+
 require_once __DIR__ . '/../src/Http/ApiException.php';
 require_once __DIR__ . '/../src/Http/AuthContext.php';
 require_once __DIR__ . '/../src/Services/DynamoStorageService.php';
@@ -104,6 +113,22 @@ try {
     } elseif (preg_match('#^/api/v1/commissions/agent/([^/]+)$#', $uri, $m) && $method === 'GET') {
         AuthContext::requireRole(['AGENTE', 'FINANZAS', 'ADMIN']); // CU18
         $response = $commissions->getAgentBalance(urldecode($m[1]));
+    } elseif ($uri === '/api/v1/architecture' && $method === 'GET') {
+        // Descripción de la arquitectura interna (la muestra el modo demo del portal).
+        $response = [
+            'service' => 'ms-billing',
+            'technology' => 'PHP 8.3 + Amazon DynamoDB',
+            'architecture' => 'Clean Architecture',
+            'boundedContext' => 'Cobros, reservas con arras y comisiones',
+            'layers' => [
+                ['name' => 'Entidades (reglas de empresa)', 'path' => 'src/Domain/', 'items' => ['BillingRules: arras, rechazo de la pasarela, saldo y cuotas, comisión 3 % − 13 %', 'RuleViolation (error de negocio sin HTTP)']],
+                ['name' => 'Casos de uso', 'path' => 'src/Application/UseCase/', 'items' => ['ChargeArras', 'RefundCharge', 'ManageReservations', 'RegisterOperationPayment', 'ManageCommissions']],
+                ['name' => 'Puertos', 'path' => 'src/Application/Port/', 'items' => ['BillingRepository (interfaz)', 'ConcurrentUpdate']],
+                ['name' => 'Adaptadores de interfaz', 'path' => 'src/Controllers/', 'items' => ['BillingController y CommissionController: HTTP → caso de uso → JSON (mismas respuestas)']],
+                ['name' => 'Frameworks y drivers', 'path' => 'src/Infrastructure/ y src/Services/', 'items' => ['DynamoBillingRepository implementa el puerto', 'DynamoStorageService: Amazon DynamoDB con firma SigV4']],
+            ],
+            'rule' => 'Regla de dependencia: las capas externas dependen de las internas; el dominio y los casos de uso no conocen HTTP ni DynamoDB.',
+        ];
     } elseif ($uri === '/api/v1/finances' || $uri === '/api/v1/finances/summary') {
         AuthContext::requireRole(CASHIER); // CU19
         $response = $billing->getFinances();

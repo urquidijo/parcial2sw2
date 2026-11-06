@@ -13,7 +13,7 @@ const MAX_ROWS = 100;
 
 const PROPERTY_STATUS = ['DISPONIBLE', 'RESERVADO', 'COMPRADO', 'ALQUILADO'];
 const PROPERTY_TYPES = ['DEPARTAMENTO', 'CASA', 'TERRENO', 'OFICINA', 'LOCAL_COMERCIAL'];
-const CONTRACT_STATUS = ['PENDIENTE_FIRMA', 'FIRMADO', 'CANCELADO'];
+const CONTRACT_STATUS = ['PENDIENTE_FIRMA', 'FIRMADO', 'CANCELADO', 'CONCLUIDO'];
 const CONTRACT_TYPES = ['PROMESA_COMPRAVENTA', 'ARRENDAMIENTO', 'RESERVA_CON_ARRAS'];
 const VISIT_STATUS = ['CONFIRMADA', 'COMPLETADA', 'CANCELADA'];
 const RESERVATION_STATUS = ['ACTIVA', 'CANCELADA_REEMBOLSADA', 'COMPRADA', 'ALQUILADA'];
@@ -35,6 +35,8 @@ async function apiGet(path, authorization) {
 const text = (s) => String(s ?? '').toLowerCase();
 const statusOf = (s) => (String(s || '').startsWith('RESERVADO') ? 'RESERVADO' : s);
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const hoursUntil = (iso) => (iso ? Math.round((new Date(iso).getTime() - Date.now()) / 36e5) : null);
+const daysSince = (iso) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 864e5) : null);
 
 // Resultado compacto: total, filas (máx. 100) y si se recortó.
 function rows(list, extra = {}) {
@@ -105,7 +107,7 @@ const TOOLS = [
         .map((c) => ({
           numero: c.contractNumber, tipo: c.contractType, estado: c.status, inmueble: c.propertyTitle || c.propertyId,
           cliente: c.userName || c.clientId, monto_usd: Number(c.totalAmount) || 0, anticipo_usd: Number(c.downPayment) || 0,
-          firmas: (c.signatures || []).length, fecha: String(c.createdAt || '').slice(0, 10),
+          firmas: (c.signatures || []).length, fecha: String(c.createdAt || '').slice(0, 10), dias_desde_creacion: daysSince(c.createdAt),
         }));
       return rows(list);
     },
@@ -143,6 +145,7 @@ const TOOLS = [
           id: r.reservationId || r.id, inmueble: r.propertyTitle || r.propertyId, titular: r.userName || r.user_name,
           telefono: r.userPhone || r.user_phone || '', arras_usd: Number(r.depositAmount || r.deposit_amount) || 0,
           estado: r.status, creada: String(r.created_at || '').slice(0, 10), vence: String(r.expires_at || '').slice(0, 16).replace('T', ' '),
+          horas_para_vencer: r.status === 'ACTIVA' ? hoursUntil(r.expires_at) : null,
         }));
       return rows(list);
     },
@@ -174,8 +177,73 @@ const TOOLS = [
         .map((c) => ({
           id: c.commissionId, agente: c.agentName || c.agentId, contrato: c.contractNumber || '', operacion: c.operationType,
           base_usd: c.baseAmount, neto_usd: c.netAmount, estado: c.status, pagada: String(c.paidAt || '').slice(0, 10),
+          dias_desde_generada: daysSince(c.createdAt),
         }));
       return rows(list);
+    },
+  },
+  {
+    name: 'consultar_consultas_clientes',
+    description: 'Lista las consultas que los clientes enviaron sobre inmuebles, con filtro opcional de estado y cuántas horas lleva cada una sin respuesta.',
+    inputSchema: { estado: z.enum(['PENDIENTE', 'RESPONDIDA']).optional() },
+    async run(args, auth) {
+      const list = (await apiGet('/inquiries', auth))
+        .filter((q) => !args.estado || q.status === args.estado)
+        .map((q) => ({
+          id: q.id, inmueble: q.propertyTitle || q.propertyId, cliente: q.clientName, telefono: q.clientPhone || '',
+          consulta: String(q.message || '').slice(0, 140), estado: q.status, creada: String(q.createdAt || '').slice(0, 16).replace('T', ' '),
+          horas_sin_respuesta: q.status === 'PENDIENTE' ? -hoursUntil(q.createdAt) : null, respondida_por: q.answeredBy || '',
+        }));
+      return rows(list);
+    },
+  },
+  {
+    name: 'consultar_cobros_pendientes',
+    description: 'Contratos firmados con cobros pendientes en caja: saldos de compra sin pagar y cuotas de alquiler (indica si la cuota del mes está atrasada). Solo Cajero y Administrador.',
+    inputSchema: {},
+    async run(_args, auth) {
+      const now = new Date();
+      const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const list = (await apiGet('/cashier/operations', auth))
+        .filter((o) => !o.settled)
+        .map((o) => {
+          const rent = o.kind === 'CUOTA_ALQUILER';
+          const late = rent && (o.nextPeriod < thisMonth || (o.nextPeriod === thisMonth && now.getDate() > 5));
+          return {
+            contrato: o.contractNumber, tipo: rent ? 'Cuota de alquiler' : 'Saldo de compra', cliente: o.clientName,
+            inmueble: o.propertyTitle || o.propertyId, monto_usd: o.amountDue, periodo: rent ? o.nextPeriod : null,
+            atrasado: late, firmado: String(o.signedAt || '').slice(0, 10), dias_desde_firma: daysSince(o.signedAt),
+          };
+        });
+      return rows(list);
+    },
+  },
+  {
+    name: 'resumen_negocio',
+    description: 'Resumen consolidado de todo el negocio en una sola llamada (cruza inmuebles, visitas, reservas, contratos, cobros y comisiones): indicadores clave (ingresos del mes y variación contra el mes anterior, valor de la cartera, arras en custodia, comisiones por pagar, días promedio de cierre), embudo de 90 días visitas → reservas → contratos firmados y pendientes que requieren atención. Úsala PRIMERO para preguntas de totales, tendencias, conversión o desempeño de agentes. El parámetro vista elige qué tabla devuelve en filas. Solo Cajero y Administrador.',
+    inputSchema: {
+      vista: z.enum(['ingresos_por_mes', 'embudo', 'agentes', 'ciudades', 'pendientes']).optional().describe('Tabla a devolver (por defecto ingresos_por_mes de los últimos 6 meses)'),
+    },
+    async run(args, auth) {
+      const o = await apiGet('/bi/overview', auth);
+      const tables = {
+        ingresos_por_mes: () => o.ingresosPorMes.map((m) => ({ mes: m.mes, arras_usd: m.arras, saldos_compra_usd: m.saldos, cuotas_alquiler_usd: m.cuotas, total_usd: m.total })),
+        embudo: () => o.embudo.etapas.map((e) => ({ etapa: e.etapa, cantidad: e.cantidad, conversion_pct: e.conversion })),
+        agentes: () => o.agentes.map((a) => ({ agente: a.agente, operaciones: a.operaciones, monto_vendido_usd: a.montoVendido, comision_usd: a.comision, comision_pendiente_usd: a.comisionPendiente })),
+        ciudades: () => o.cartera.porCiudad.map((c) => ({ ciudad: c.ciudad, inmuebles: c.inmuebles, disponibles: c.disponibles, valor_usd: c.valor })),
+        pendientes: () => o.pendientes,
+      };
+      const k = o.kpis;
+      return rows(tables[args.vista || 'ingresos_por_mes'](), {
+        indicadores: {
+          inmuebles: k.inmuebles, disponibles: k.disponibles, reservados: k.reservados, vendidos: k.vendidos, alquilados: k.alquilados,
+          valor_cartera_usd: k.valorCartera, ingresos_mes_usd: k.ingresosMes, ingresos_mes_anterior_usd: k.ingresosMesAnterior,
+          variacion_mes_pct: k.variacionMes, arras_custodia_usd: k.arrasCustodia, comisiones_por_pagar_usd: k.comisionesPorPagar,
+          dias_promedio_cierre: k.diasPromedioCierre,
+        },
+        embudo_90_dias: o.embudo.etapas,
+        cantidad_pendientes: o.pendientes.length,
+      });
     },
   },
 ];

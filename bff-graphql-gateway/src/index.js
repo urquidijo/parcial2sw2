@@ -47,7 +47,7 @@ const toContract = (c) => ({
   signaturesRequired: 2,
 });
 
-const toEmployee = (u) => ({ id: u.id, name: u.name, email: u.email, sector: u.sector, active: u.active !== false, createdAt: u.createdAt });
+const toEmployee = (u) => ({ id: u.id, name: u.name, email: u.email, sector: u.sector, active: u.active !== false, createdAt: u.createdAt, telegramLinked: Boolean(u.telegramLinked), telegramAlerts: Boolean(u.telegramAlerts) });
 
 const toAppointment = (a) => ({ ...a, clientName: a.userName, clientPhone: a.userPhone });
 
@@ -90,6 +90,8 @@ const resolvers = {
       toEmployee((await rest(ctx, `${CONTRACTS_URL}/employees/${encodeURIComponent(id)}/sector`, { method: 'PATCH', body: { sector } })).data),
     setEmployeeActive: async (_, { id, active }, ctx) =>
       toEmployee((await rest(ctx, `${CONTRACTS_URL}/employees/${encodeURIComponent(id)}/${active ? 'activate' : 'deactivate'}`, { method: 'POST' })).data),
+    setEmployeeTelegramAlerts: async (_, { id, enabled }, ctx) =>
+      toEmployee((await rest(ctx, `${CONTRACTS_URL}/employees/${encodeURIComponent(id)}/telegram-alerts`, { method: 'PATCH', body: { enabled } })).data),
     updateAppointmentStatus: async (_, { id, status }, ctx) =>
       toAppointment((await rest(ctx, `${CONTRACTS_URL}/appointments/${encodeURIComponent(id)}/status`, { method: 'PUT', body: { status } })).data),
   },

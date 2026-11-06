@@ -25,6 +25,7 @@ const STATUS_LABELS: Record<ContractStatus, string> = {
   FIRMADO: 'Firmado',
   CANCELADO: 'Anulado',
   RECHAZADO: 'Rechazado',
+  CONCLUIDO: 'Concluido',
 };
 
 interface ContractForm {
@@ -93,7 +94,7 @@ interface ContractForm {
                     @if (canSignAsLegal(c)) {
                       <button class="btn" type="button" [disabled]="busyId() === c.id" (click)="sign(c)"><erp-icon name="Scale" [size]="14" />Dar fe pública</button>
                     }
-                    @if (canManage() && c.status !== 'CANCELADO') {
+                    @if (canManage() && c.status !== 'CANCELADO' && c.status !== 'CONCLUIDO') {
                       <button class="btn-logout" type="button" (click)="openCancel(c)">Anular</button>
                     }
                   </div>
@@ -254,7 +255,7 @@ export class ContractsViewComponent implements OnChanges {
   }
 
   statusClass(status: ContractStatus): string {
-    if (status === 'FIRMADO') return 'erp-status ok';
+    if (status === 'FIRMADO' || status === 'CONCLUIDO') return 'erp-status ok';
     if (status === 'PENDIENTE_FIRMA' || status === 'BORRADOR') return 'erp-status warn';
     if (status === 'RECHAZADO') return 'erp-status bad';
     return 'erp-status off';

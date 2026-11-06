@@ -6,6 +6,9 @@ import { PropertiesController } from './properties.controller';
 import { PropertiesService } from './properties.service';
 import { InquiriesController } from './inquiries.controller';
 import { InquiriesService } from './inquiries.service';
+import { ArchitectureController } from './architecture.controller';
+import { PROPERTY_REPOSITORY } from './domain/property.repository';
+import { MongoPropertyRepository } from './infrastructure/mongo-property.repository';
 
 @Module({
   imports: [
@@ -14,8 +17,13 @@ import { InquiriesService } from './inquiries.service';
       { name: Inquiry.name, schema: InquirySchema },
     ]),
   ],
-  controllers: [PropertiesController, InquiriesController],
-  providers: [PropertiesService, InquiriesService],
+  controllers: [PropertiesController, InquiriesController, ArchitectureController],
+  providers: [
+    PropertiesService,
+    InquiriesService,
+    // DDD: la aplicación depende de la interfaz del repositorio; aquí se elige la implementación (MongoDB).
+    { provide: PROPERTY_REPOSITORY, useClass: MongoPropertyRepository },
+  ],
   exports: [PropertiesService],
 })
 export class PropertiesModule implements OnModuleInit {
