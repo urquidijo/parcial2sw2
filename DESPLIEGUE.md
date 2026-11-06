@@ -36,6 +36,73 @@ El orden importa porque todos los servicios necesitan la URL pública de Keycloa
 
 ---
 
+## 2.1 Mapa multi-cloud (AWS + Google Cloud + Azure)
+
+Cada microservicio corre en una nube distinta. Las variables de cada uno están en las secciones 3 a 7; aquí solo se explica dónde va cada uno y cómo se sube.
+
+| Servicio | Dónde | Cómo se sube |
+|---|---|---|
+| ms-billing (PHP) | **AWS Elastic Beanstalk** (junto a DynamoDB) | zip de `ms-billing-php/` con su Dockerfile |
+| ms-properties (NestJS) | **Google Cloud Run** | `gcloud run deploy --source .` |
+| ms-contracts (Spring) | **Azure Container Apps** | `az containerapp up --source .` |
+| Gateway, Keycloak, BFF, MCP, ML | Railway | el gateway **ya existe** (`api-gateway-production-c3ed`): solo se actualizan sus variables |
+| Shell, React, Angular, BI | Vercel | los proyectos **ya existen**: no hay que crear otros, porque sus URLs están fijas en el código |
+
+**Orden:** Keycloak → los 3 microservicios → BFF y ML → generar los dominios de Railway del MCP y del gateway (cada uno necesita la URL del otro) → gateway → Vercel → redirect URIs en Keycloak.
+
+**Costos:** Railway no es gratis (crédito de prueba o Hobby de USD 5/mes). GCP pide tarjeta, pero el uso de la demo entra en el free tier. `az containerapp up` crea un registro de contenedores que consume del crédito (conviene usar Azure for Students). La PostgreSQL gratis de Render **vence a los 30 días**: revisar la fecha antes de la presentación.
+
+### AWS — ms-billing (Elastic Beanstalk)
+1. Comprimir **el contenido** de `ms-billing-php/` (`Dockerfile`, `public/`, `src/`; sin `.env`). No usar `Dockerrun.aws.json`: apunta a una imagen vieja de Docker Hub.
+2. Elastic Beanstalk → *Create application* `habitat-billing` → plataforma **Docker** → subir el zip.
+3. Preset **Single instance** (el load balancer no entra en el free tier).
+4. Variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `KEYCLOAK_ISSUER_URI`.
+5. La URL queda como `http://habitat-billing.<región>.elasticbeanstalk.com`. Sirve para el gateway (llamada de servidor a servidor): `BILLING_SERVICE_URL=http://.../api/v1`.
+
+### Google Cloud — ms-properties (Cloud Run)
+1. Activar las APIs Cloud Run, Cloud Build y Artifact Registry.
+2. En MongoDB Atlas → *Network Access* permitir `0.0.0.0/0` (Cloud Run no tiene IP fija).
+3. Copiar `ms-properties-nestjs/env.yaml.example` a `env.yaml` (no se versiona) y completar los datos.
+4. Desde `ms-properties-nestjs/`:
+   ```powershell
+   gcloud run deploy ms-properties --source . --region us-central1 --allow-unauthenticated --port 3001 --env-vars-file env.yaml
+   ```
+5. Abrir la URL una vez antes de la demo, porque la primera petición después de escalar a cero tarda unos segundos.
+
+### Azure — ms-contracts (Container Apps)
+Desde `ms-contracts-spring/`:
+```powershell
+az login
+az group create --name habitat-rg --location eastus
+az containerapp up --name ms-contracts --resource-group habitat-rg --location eastus --source . --ingress external --target-port 8081
+az containerapp secret set --name ms-contracts --resource-group habitat-rg --secrets "db-pass=<clave-render>" "kc-admin=<KEYCLOAK_ADMIN_CLIENT_SECRET>"
+az containerapp update --name ms-contracts --resource-group habitat-rg --cpu 0.5 --memory 1Gi --set-env-vars `
+  "SPRING_DATASOURCE_URL=jdbc:postgresql://<host-render>:5432/<base>?sslmode=require" `
+  "SPRING_DATASOURCE_USERNAME=<usuario>" "SPRING_DATASOURCE_PASSWORD=secretref:db-pass" `
+  "KEYCLOAK_ISSUER_URI=https://<keycloak>/realms/habitat" `
+  "KEYCLOAK_JWKS_URI=https://<keycloak>/realms/habitat/protocol/openid-connect/certs" `
+  "KEYCLOAK_URL=https://<keycloak>" "KEYCLOAK_ADMIN_CLIENT_SECRET=secretref:kc-admin"
+```
+El host de Render es el **externo** (`...oregon-postgres.render.com`).
+
+### Railway
+- **Keycloak:** Root Directory `keycloak` (usa `keycloak/Dockerfile`), volumen en `/opt/keycloak/data`, variables de la sección 3.
+- **ML:** Root Directory `ms-ml-python` (Dockerfile). **BFF** y **MCP:** Root Directory propio, `npm start`.
+- **Gateway:** el servicio que ya existe (Dockerfile de la raíz). Además de las variables de la sección 6, necesita `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `IDEMPOTENCY_TABLE` (la idempotencia usa DynamoDB) y `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y `VAPID_SUBJECT`.
+
+### URLs para anotar
+```
+[ ] Keycloak:     https://
+[ ] ms-billing:   http://          .elasticbeanstalk.com
+[ ] ms-properties https://ms-properties-     .run.app
+[ ] ms-contracts: https://ms-contracts.     .azurecontainerapps.io
+[ ] BFF / MCP / ML: https://        .up.railway.app
+[ ] Gateway:      https://api-gateway-production-c3ed.up.railway.app (ya existe)
+```
+Con la URL de Keycloak, reemplazar `CAMBIAR-keycloak` en el bloque del inicio de `mfe-shell/index.html`.
+
+---
+
 ## 3. Keycloak (servicio nuevo)
 
 Sin Keycloak en la nube nadie puede iniciar sesión en producción.
@@ -169,7 +236,7 @@ Sin las variables de n8n la reserva funciona igual; solo no se envía el aviso p
 | BI Next | `mfe-bi-next` | Variables: `NEXT_PUBLIC_KEYCLOAK_URL=https://<keycloak>`, `NEXT_PUBLIC_API_URL=https://<gateway>/api`, `NEXT_PUBLIC_SHELL_URL=https://<shell-vercel>` |
 | Shell | `mfe-shell` | Sin build. Las llamadas `/api/*` ya se redirigen al gateway de Railway (`vercel.json`) |
 
-> ⚠️ **Pendiente en el código antes de desplegar el shell:** el shell toma la URL de Keycloak de `window.HABITAT_KEYCLOAK_URL`, y la del dashboard de `window.HABITAT_BI_URL`. Si no están definidas usa `localhost`, así que en producción el login no funcionaría. Hay que agregar un bloque así al inicio de `mfe-shell/index.html`, con las URLs reales:
+> ✅ **Hecho:** el bloque ya está al inicio de `mfe-shell/index.html`, con `CAMBIAR-keycloak` como marcador: falta poner la URL real. Contexto: el shell toma la URL de Keycloak de `window.HABITAT_KEYCLOAK_URL`, y la del dashboard de `window.HABITAT_BI_URL`. Si no están definidas usa `localhost`, así que en producción el login no funcionaría. Hay que agregar un bloque así al inicio de `mfe-shell/index.html`, con las URLs reales:
 > ```html
 > <script>
 >   if (!['localhost', '127.0.0.1'].includes(location.hostname)) {

@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Habitat Pro | Plataforma Inmobiliaria Empresarial</title>
+  <!-- URLs de producción (en local se usan las de localhost). Reemplazar por las reales al desplegar. -->
+  <script>
+    if (!['localhost', '127.0.0.1'].includes(location.hostname) && location.protocol !== 'file:') {
+      window.HABITAT_KEYCLOAK_URL = 'https://CAMBIAR-keycloak.up.railway.app';
+      window.HABITAT_BI_URL = 'https://parcial2sw2.vercel.app';
+    }
+  </script>
   <!-- PWA: instalable en el celular y usable sin conexión (sw.js) -->
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#1d4ed8">

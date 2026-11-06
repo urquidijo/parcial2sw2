@@ -7,3 +7,4 @@ npm-debug.log
 .env.*
 !.env.example
 README.md
+env.yaml
