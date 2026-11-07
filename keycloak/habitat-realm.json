@@ -58,9 +58,12 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "redirectUris": [
+        "*",
         "http://localhost:5000/*",
         "http://127.0.0.1:5000/*",
-        "http://localhost:3003/*"
+        "http://localhost:3003/*",
+        "https://parcial2sw2-mfe-shell.vercel.app/*",
+        "https://parcial2sw2.vercel.app/*"
       ],
       "webOrigins": [
         "+",
