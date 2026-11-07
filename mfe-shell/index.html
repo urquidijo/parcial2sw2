@@ -847,6 +847,409 @@
       font-size: 0.84rem; box-shadow: var(--shadow-lg);
     }
     .update-bar .btn { min-height: 0; padding: 0.3rem 0.7rem; }
+    :root {
+      /* Mejoras UI Globales: diseño limpio, moderno y pulido */
+      --bg-page: #f8fafc;
+      --bg-alt: #f1f5f9;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+      --brand: #2563eb;
+      --brand-hover: #1d4ed8;
+      --brand-light: #eff6ff;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --shadow-sm: 0 1px 3px 0 rgb(15 23 42 / 0.06), 0 1px 2px -1px rgb(15 23 42 / 0.04);
+      --shadow-md: 0 12px 28px -6px rgb(15 23 42 / 0.1), 0 4px 10px -2px rgb(15 23 42 / 0.05);
+      --shadow-lg: 0 20px 45px -12px rgb(15 23 42 / 0.22);
+      --radius: 12px;
+    }
+
+    /* Encabezado con efecto cristal */
+    header {
+      background: rgba(255, 255, 255, 0.92) !important;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.03);
+      padding: 0.65rem 1.5rem !important;
+    }
+    .brand-icon {
+      width: 34px !important;
+      height: 34px !important;
+      border-radius: 9px !important;
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+      box-shadow: 0 4px 10px -2px rgba(37, 99, 235, 0.35);
+    }
+    nav.main-nav {
+      flex-wrap: nowrap !important;
+      overflow-x: auto;
+      scrollbar-width: none;
+      background: #f1f5f9;
+      padding: 0.25rem;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+    }
+    nav.main-nav::-webkit-scrollbar { display: none; }
+    .nav-btn {
+      padding: 0.42rem 0.72rem !important;
+      border-radius: 7px !important;
+      font-size: 0.81rem !important;
+      transition: all 0.15s ease !important;
+    }
+    .nav-btn:hover { background: rgba(255, 255, 255, 0.65) !important; color: var(--text-main) !important; }
+    .nav-btn.active {
+      background: #ffffff !important;
+      color: var(--brand) !important;
+      font-weight: 600 !important;
+      box-shadow: 0 1px 3px 0 rgb(15 23 42 / 0.08);
+    }
+    .user-pill {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 0.25rem 0.75rem 0.25rem 0.3rem;
+      border-radius: 999px;
+    }
+    .user-avatar {
+      width: 32px !important;
+      height: 32px !important;
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+      border-color: #bfdbfe !important;
+      color: var(--brand) !important;
+      font-weight: 700 !important;
+    }
+    .btn-logout {
+      border-radius: 8px !important;
+      font-weight: 500 !important;
+      box-shadow: 0 1px 2px rgb(15 23 42 / 0.03);
+      transition: all 0.15s ease !important;
+    }
+
+    /* Pantalla de Login / Sign In / Registro moderna */
+    .auth-container {
+      background:
+        radial-gradient(circle at 15% 20%, rgba(37, 99, 235, 0.09) 0%, transparent 45%),
+        radial-gradient(circle at 85% 80%, rgba(16, 185, 129, 0.07) 0%, transparent 45%),
+        linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%) !important;
+      padding: 1.5rem !important;
+    }
+    .auth-card {
+      max-width: 860px !important;
+      padding: 0 !important;
+      border-radius: 20px !important;
+      border: 1px solid rgba(226, 232, 240, 0.9) !important;
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.14), 0 4px 16px -2px rgba(15, 23, 42, 0.05) !important;
+      overflow: hidden;
+      display: grid !important;
+      grid-template-columns: 1.05fr 1fr;
+      gap: 0 !important;
+    }
+    .auth-showcase {
+      background: linear-gradient(145deg, #1e3a8a 0%, #2563eb 55%, #0f172a 100%);
+      color: #ffffff;
+      padding: 2.5rem 2.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1.75rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .auth-showcase::after {
+      content: '';
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      right: -80px;
+      bottom: -80px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.14) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .auth-showcase-features {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      margin-top: 0.5rem;
+    }
+    .auth-feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.7rem;
+      font-size: 0.83rem;
+      color: rgba(255, 255, 255, 0.9);
+      line-height: 1.4;
+    }
+    .auth-feature-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      color: #93c5fd;
+    }
+    .auth-form-panel {
+      padding: 2.5rem 2.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 1.35rem;
+      background: #ffffff;
+    }
+    .demo-accounts {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0 !important;
+      border-radius: 12px;
+      padding: 0.9rem 1rem !important;
+      font-size: 0.76rem;
+    }
+    .demo-pill-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.5rem;
+    }
+    .demo-user-pill {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 0.22rem 0.5rem;
+      font-size: 0.73rem;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .demo-user-pill strong {
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.71rem;
+    }
+    @media (max-width: 760px) {
+      .auth-card { grid-template-columns: 1fr; max-width: 440px !important; }
+      .auth-showcase { padding: 1.75rem 1.5rem; }
+      .auth-form-panel { padding: 1.75rem 1.5rem; }
+    }
+
+    /* KPIs y tarjetas de métricas */
+    .hero-kpis, .stat-strip {
+      display: grid !important;
+      grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)) !important;
+      gap: 0.85rem !important;
+      background: transparent !important;
+      border: none !important;
+      overflow: visible !important;
+    }
+    .kpi-card, .stat {
+      background: var(--bg-card) !important;
+      border: 1px solid var(--border) !important;
+      border-top: 3px solid #cbd5e1 !important;
+      border-radius: 12px !important;
+      padding: 1rem 1.2rem !important;
+      margin-left: 0 !important;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .kpi-card:nth-child(1), .stat:nth-child(1) { border-top-color: #2563eb !important; }
+    .kpi-card:nth-child(2), .stat:nth-child(2) { border-top-color: #059669 !important; }
+    .kpi-card:nth-child(3), .stat:nth-child(3) { border-top-color: #d97706 !important; }
+    .kpi-card:nth-child(4), .stat:nth-child(4) { border-top-color: #6366f1 !important; }
+    .kpi-card:nth-child(5), .stat:nth-child(5) { border-top-color: #2563eb !important; }
+    .kpi-card:hover, .stat:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    .kpi-card .value, .stat .value {
+      font-size: 1.45rem !important;
+      font-weight: 700 !important;
+      letter-spacing: -0.02em;
+      margin: 0.1rem 0;
+    }
+    #kpiDisponibles { color: var(--emerald) !important; }
+    #kpiReservados { color: var(--amber) !important; }
+    #kpiValorCartera { color: var(--brand) !important; }
+
+    /* Banner bienvenida comprador */
+    .buyer-hero-card {
+      background: linear-gradient(135deg, #eff6ff 0%, #ffffff 70%) !important;
+      border: 1px solid #bfdbfe !important;
+      border-radius: 14px !important;
+      padding: 1.4rem 1.65rem !important;
+      box-shadow: var(--shadow-sm);
+    }
+    .buyer-hero-features span {
+      background: #ffffff;
+      border: 1px solid #dbeafe;
+      padding: 0.3rem 0.7rem;
+      border-radius: 999px;
+      box-shadow: 0 1px 2px rgb(15 23 42 / 0.03);
+    }
+
+    /* Buscador, filtros, inputs y chips */
+    .filter-bar {
+      box-shadow: var(--shadow-sm);
+      padding: 0.85rem 1rem !important;
+      border-radius: 12px !important;
+    }
+    .search-input, .form-control, .filter-select {
+      border-radius: 8px !important;
+      padding: 0.55rem 0.8rem !important;
+      border-color: #cbd5e1 !important;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease !important;
+    }
+    .search-input:hover, .form-control:hover, .filter-select:hover {
+      border-color: #94a3b8 !important;
+    }
+    .filter-chip {
+      border-radius: 8px !important;
+      padding: 0.42rem 0.85rem !important;
+      font-weight: 600 !important;
+      transition: all 0.15s ease !important;
+    }
+    .filter-chip.active {
+      background: var(--brand) !important;
+      border-color: var(--brand) !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+    }
+
+    /* Tarjetas del catálogo */
+    .properties-grid {
+      gap: 1.25rem !important;
+    }
+    .property-card {
+      border-radius: 14px !important;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease !important;
+    }
+    .property-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md) !important;
+      border-color: #cbd5e1 !important;
+    }
+    .property-img { height: 210px !important; }
+    .property-img img { transition: transform 0.35s ease; }
+    .property-card:hover .property-img img { transform: scale(1.04); }
+    .badge-status, .property-img .badge-status {
+      border-radius: 999px !important;
+      padding: 0.25rem 0.65rem !important;
+      font-size: 0.71rem !important;
+      box-shadow: 0 2px 6px rgb(0 0 0 / 0.08);
+    }
+    .status-disponible {
+      background: #ecfdf5 !important;
+      color: #047857 !important;
+      border-color: #a7f3d0 !important;
+    }
+    .delivery-pill {
+      border-radius: 999px !important;
+      padding: 0.22rem 0.6rem !important;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 2px 6px rgb(0 0 0 / 0.06);
+    }
+    .price-pill {
+      border-radius: 8px !important;
+      padding: 0.35rem 0.7rem !important;
+      font-weight: 700 !important;
+      font-size: 1rem !important;
+      box-shadow: 0 4px 12px rgb(0 0 0 / 0.12) !important;
+    }
+    .specs-grid {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0 !important;
+      border-radius: 8px;
+      padding: 0.55rem 0.4rem !important;
+    }
+
+    /* Botones */
+    .btn {
+      border-radius: 8px !important;
+      font-weight: 600 !important;
+      box-shadow: 0 1px 2px rgb(37 99 235 / 0.15);
+      transition: all 0.15s ease !important;
+    }
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgb(37 99 235 / 0.22);
+    }
+    .btn-secondary {
+      box-shadow: 0 1px 2px rgb(15 23 42 / 0.04) !important;
+    }
+    .btn-secondary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 8px rgb(15 23 42 / 0.07) !important;
+    }
+
+    /* Tablas de todas las secciones */
+    .data-table-wrapper {
+      box-shadow: var(--shadow-sm);
+      border-radius: 12px !important;
+    }
+    table.data-table th {
+      background: #f8fafc !important;
+      font-size: 0.73rem !important;
+      font-weight: 600 !important;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #475569 !important;
+      padding: 0.75rem 1rem !important;
+    }
+    table.data-table td {
+      padding: 0.85rem 1rem !important;
+      vertical-align: middle !important;
+    }
+    table.data-table tr:hover td {
+      background: #f8fafc !important;
+    }
+
+    /* Modales y cuadros de resumen */
+    .modal-backdrop {
+      background: rgba(15, 23, 42, 0.5) !important;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    .modal-window {
+      border-radius: 16px !important;
+      border-color: #e2e8f0 !important;
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25) !important;
+    }
+    .modal-head {
+      padding: 1.05rem 1.35rem !important;
+      background: #ffffff !important;
+    }
+    .modal-head h3 {
+      font-size: 1.05rem !important;
+      font-weight: 700 !important;
+    }
+    .modal-foot {
+      background: #f8fafc !important;
+      padding: 0.9rem 1.35rem !important;
+    }
+    .summary-box {
+      background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%) !important;
+      border: 1px solid #bfdbfe !important;
+      border-left: 4px solid var(--brand) !important;
+      border-radius: 10px !important;
+      padding: 0.95rem 1.1rem !important;
+    }
+
+    /* Botón flotante de ayuda y panel de asistente */
+    .help-fab {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+      box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.45) !important;
+      font-weight: 600 !important;
+      transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+    }
+    .help-fab:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px -4px rgba(37, 99, 235, 0.55) !important;
+    }
+    .help-panel {
+      border-radius: 16px !important;
+      box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.22) !important;
+    }
   </style>
 
   <!-- Configuración Global Inmediata de API Gateway para Microfrontends -->
@@ -936,29 +1339,74 @@
   <!-- PANTALLA DE ACCESO: INICIO DE SESIÓN ÚNICO (KEYCLOAK) -->
   <div id="loginScreen" class="auth-container hidden">
     <div class="auth-card">
-      <div style="display:flex; align-items:center; gap:0.6rem;">
-        <div class="brand-icon"><span data-icon="Building2" data-size="17"></span></div>
-        <div class="brand-title">
-          <h1>Habitat Pro</h1>
-          <span>Gestión inmobiliaria</span>
+      <div class="auth-showcase">
+        <div>
+          <div style="display:flex; align-items:center; gap:0.65rem; margin-bottom:1.75rem;">
+            <div style="width:38px; height:38px; border-radius:10px; background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.28); display:grid; place-items:center; color:#fff;">
+              <span data-icon="Building2" data-size="20"></span>
+            </div>
+            <div>
+              <div style="font-size:1.05rem; font-weight:700; letter-spacing:-0.01em; line-height:1.15;">Habitat Pro</div>
+              <div style="font-size:0.75rem; color:rgba(255,255,255,0.75); font-weight:500;">Plataforma Inmobiliaria Empresarial</div>
+            </div>
+          </div>
+
+          <h2 style="font-size:1.5rem; font-weight:700; line-height:1.25; letter-spacing:-0.02em; margin-bottom:0.65rem;">
+            Tu próximo inmueble con respaldo legal y financiero en línea
+          </h2>
+          <p style="font-size:0.86rem; color:rgba(255,255,255,0.82); line-height:1.5;">
+            Explora el catálogo verificado, agenda visitas, aparta tu propiedad con arras y firma contratos digitales desde un solo portal.
+          </p>
+        </div>
+
+        <div class="auth-showcase-features">
+          <div class="auth-feature-item">
+            <div class="auth-feature-icon"><span data-icon="ShieldCheck" data-size="15"></span></div>
+            <div><strong>Catálogo verificado y galería S3</strong><br><span style="color:rgba(255,255,255,0.72); font-size:0.78rem;">Búsqueda geolocalizada, calculadora hipotecaria y tasación con IA.</span></div>
+          </div>
+          <div class="auth-feature-item">
+            <div class="auth-feature-icon"><span data-icon="Lock" data-size="15"></span></div>
+            <div><strong>Reserva inmediata por 48 horas</strong><br><span style="color:rgba(255,255,255,0.72); font-size:0.78rem;">Bloqueo automático de unidad y custodia de arras garantizada.</span></div>
+          </div>
+          <div class="auth-feature-item">
+            <div class="auth-feature-icon"><span data-icon="FileSignature" data-size="15"></span></div>
+            <div><strong>Contratos con firma digital SHA-256</strong><br><span style="color:rgba(255,255,255,0.72); font-size:0.78rem;">Validez jurídica y seguimiento transparente en tiempo real.</span></div>
+          </div>
         </div>
       </div>
 
-      <div>
-        <h2 style="font-size:1.25rem;">Inicia sesión</h2>
-        <p class="muted" style="font-size:0.84rem; margin-top:0.2rem;">Una sola cuenta para el portal, el dashboard y la app móvil.</p>
-      </div>
+      <div class="auth-form-panel">
+        <div>
+          <span class="status-pill info" style="margin-bottom:0.6rem;">Acceso Único SSO · Keycloak</span>
+          <h2 style="font-size:1.4rem; font-weight:700; color:var(--text-main);">Bienvenido de nuevo</h2>
+          <p class="muted" style="font-size:0.86rem; margin-top:0.25rem;">Inicia sesión con tu cuenta o regístrate gratis como cliente para explorar y reservar.</p>
+        </div>
 
-      <div id="loginError" class="hidden notice error"></div>
+        <div id="loginError" class="hidden notice error"></div>
 
-      <div style="display:flex; flex-direction:column; gap:0.5rem;">
-        <button type="button" class="btn" onclick="iniciarSesionSso()">Iniciar sesión</button>
-        <button type="button" class="btn btn-secondary" onclick="crearCuentaSso()">Crear cuenta de cliente</button>
-      </div>
+        <div style="display:flex; flex-direction:column; gap:0.65rem;">
+          <button type="button" class="btn" style="padding:0.75rem 1rem; font-size:0.9rem;" onclick="iniciarSesionSso()">
+            <span data-icon="LogIn" data-size="16"></span>Iniciar sesión en mi cuenta
+          </button>
+          <button type="button" class="btn btn-secondary" style="padding:0.75rem 1rem; font-size:0.9rem;" onclick="crearCuentaSso()">
+            <span data-icon="UserPlus" data-size="16"></span>Crear cuenta de cliente
+          </button>
+        </div>
 
-      <div class="demo-accounts">
-        <div style="margin-bottom:0.35rem;">Cuentas de prueba · contraseña <strong>pass123</strong> · dominio @habitat.pro</div>
-        <div><strong>juan.comprador</strong> cliente · <strong>carlos.broker</strong> agente · <strong>elena.ramos</strong> legal · <strong>maria.finanzas</strong> caja · <strong>admin</strong></div>
+        <div class="demo-accounts">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+            <span style="font-weight:600; color:var(--text-main);">Cuentas de prueba</span>
+            <span style="background:#e2e8f0; color:#0f172a; padding:0.1rem 0.45rem; border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:0.71rem;">Clave: <strong>pass123</strong></span>
+          </div>
+          <div style="font-size:0.73rem; color:var(--text-muted); margin-top:0.2rem;">Dominio <code>@habitat.pro</code> · o usa el usuario directo:</div>
+          <div class="demo-pill-grid">
+            <span class="demo-user-pill"><strong>juan.comprador</strong> · Cliente</span>
+            <span class="demo-user-pill"><strong>carlos.broker</strong> · Agente</span>
+            <span class="demo-user-pill"><strong>elena.ramos</strong> · Legal</span>
+            <span class="demo-user-pill"><strong>maria.finanzas</strong> · Caja</span>
+            <span class="demo-user-pill"><strong>admin</strong> · Admin</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>

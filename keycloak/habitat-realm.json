@@ -2,6 +2,7 @@
   "realm": "habitat",
   "enabled": true,
   "displayName": "Habitat Pro",
+  "loginTheme": "habitat",
   "sslRequired": "external",
   "registrationAllowed": true,
   "registrationEmailAsUsername": true,
