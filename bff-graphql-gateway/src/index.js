@@ -47,7 +47,7 @@ const toContract = (c) => ({
   signaturesRequired: 2,
 });
 
-const toEmployee = (u) => ({ id: u.id, name: u.name, email: u.email, sector: u.sector, active: u.active !== false, createdAt: u.createdAt, telegramLinked: Boolean(u.telegramLinked), telegramAlerts: Boolean(u.telegramAlerts) });
+const toEmployee = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role || 'EMPLEADO', sector: u.sector, active: u.active !== false, createdAt: u.createdAt, telegramLinked: Boolean(u.telegramLinked), telegramAlerts: Boolean(u.telegramAlerts) });
 
 const toAppointment = (a) => ({ ...a, clientName: a.userName, clientPhone: a.userPhone });
 

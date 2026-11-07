@@ -67,6 +67,17 @@ export class PropertiesService implements OnModuleInit {
     return this.formatPropertyResponse(property);
   }
 
+  async remove(id: string): Promise<{ deleted: boolean; code: string; message: string }> {
+    const property = await this.findDocument(id);
+    if (property.status && property.status.startsWith('RESERVADO')) {
+      throw new ConflictException(`No se puede eliminar el inmueble ${property.code} mientras tiene una reserva activa.`);
+    }
+    const code = property.code;
+    await this.propertyModel.deleteOne({ _id: property._id }).exec();
+    this.logger.warn(`Inmueble ${code} eliminado del catálogo.`);
+    return { deleted: true, code, message: `Inmueble ${code} eliminado correctamente.` };
+  }
+
   async findAll(status?: string, city?: string, propertyType?: string): Promise<any[]> {
     const filter: any = {};
     if (status) filter.status = status;

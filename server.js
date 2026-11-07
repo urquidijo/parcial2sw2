@@ -338,6 +338,12 @@ app.patch('/api/properties/:id', async (req, res) => {
   }));
 });
 
+app.delete('/api/properties/:id', requireRoles('AGENTE', 'ADMIN'), async (req, res) => {
+  return sendResult(res, await fetchService(`${PROPERTIES_SVC}/${encodeURIComponent(req.params.id)}`, {
+    method: 'DELETE',
+  }));
+});
+
 // Consultas de clientes sobre un inmueble (CU01)
 const INQUIRIES_SVC = PROPERTIES_SVC.replace(/\/properties$/, '/inquiries');
 

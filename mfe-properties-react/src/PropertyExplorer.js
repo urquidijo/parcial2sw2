@@ -138,7 +138,7 @@
     return e('div', { ref: containerRef, style: { height: height || 220, borderRadius: 6, border: '1px solid var(--border)' } });
   }
 
-  function PropertyCard({ property, canEdit, onOpen, onEdit, onReserve, onVisit }) {
+  function PropertyCard({ property, canEdit, onOpen, onEdit, onDelete, onReserve, onVisit }) {
     const isDisponible = property.status === 'DISPONIBLE';
     const status = statusInfo(property.status);
 
@@ -175,6 +175,7 @@
 
         e('div', { className: 'card-actions' },
           e('div', { className: 'actions-sub-row' },
+            canEdit ? e('button', { className: 'btn btn-secondary', style: { color: 'var(--rose)', borderColor: '#fecdd3', padding: '0.5rem 0.65rem' }, title: 'Eliminar inmueble', onClick: () => onDelete(property) }, withIcon('Trash2', '', 14)) : null,
             e('button', {
               className: 'btn btn-secondary',
               style: { flex: 1 },
@@ -254,7 +255,7 @@
     );
   }
 
-  function PropertyDetail({ baseApi, property, user, onClose, onEdit, onReserve, onVisit }) {
+  function PropertyDetail({ baseApi, property, user, onClose, onEdit, onDelete, onReserve, onVisit }) {
     const photos = (property.photos && property.photos.length ? property.photos : [property.image || DEFAULT_IMAGE]);
     const [photoIndex, setPhotoIndex] = React.useState(0);
     const role = user ? user.role : null;
@@ -267,6 +268,7 @@
 
     const footer = [
       e('button', { key: 'close', className: 'btn btn-secondary', onClick: onClose }, 'Cerrar'),
+      STAFF_EDITORS.includes(role) ? e('button', { key: 'delete', className: 'btn btn-secondary', style: { color: 'var(--rose)', borderColor: '#fecdd3' }, onClick: () => onDelete(property) }, withIcon('Trash2', 'Eliminar', 14)) : null,
       STAFF_EDITORS.includes(role) ? e('button', { key: 'edit', className: 'btn btn-secondary', onClick: () => onEdit(property) }, withIcon('Pencil', 'Editar', 14)) : null,
       e('button', { key: 'visit', className: 'btn btn-secondary', onClick: () => { onClose(); onVisit(property); } }, withIcon('Calendar', 'Agendar visita', 14)),
       property.status === 'DISPONIBLE'
@@ -1053,6 +1055,20 @@
       else fetchProperties();
     };
 
+    const handleDelete = async (property) => {
+      if (!confirm('¿Seguro que deseas eliminar el inmueble "' + property.title + '" (' + property.code + ')? Esta acción no se puede deshacer.')) return;
+      try {
+        await apiRequest(baseApi, '/properties/' + encodeURIComponent(property.code), { method: 'DELETE' });
+        setSelected(null);
+        setEditing(null);
+        notify('Inmueble ' + property.code + ' eliminado del catálogo.');
+        if (typeof window.cargarPropiedadesDesdeBD === 'function') window.cargarPropiedadesDesdeBD();
+        else fetchProperties();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+
     const source = nearby ? nearby.items : properties;
     const cities = Array.from(new Set(properties.map((p) => p.city).filter(Boolean))).sort();
     const types = Array.from(new Set(properties.map((p) => p.propertyType).filter(Boolean)));
@@ -1130,7 +1146,7 @@
                 : e('div', { className: 'properties-grid', style: { marginTop: '1rem' } },
                     filtered.map((p) => e(PropertyCard, {
                       key: p.id, property: p, canEdit,
-                      onOpen: setSelected, onEdit: setEditing, onReserve: handleReserve, onVisit: handleVisit
+                      onOpen: setSelected, onEdit: setEditing, onDelete: handleDelete, onReserve: handleReserve, onVisit: handleVisit
                     }))
                   )
           ),
@@ -1140,6 +1156,7 @@
             baseApi, property: selected, user,
             onClose: () => setSelected(null),
             onEdit: (p) => setEditing(p),
+            onDelete: handleDelete,
             onReserve: handleReserve, onVisit: handleVisit
           })
         : null,

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
 import { PropertiesService } from './properties.service';
 import { CreatePropertyDto, UpdatePropertyDto, ReserveLockDto, GeoSearchDto } from './dto/property.dto';
 import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
@@ -18,6 +18,13 @@ export class PropertiesController {
   @Roles('AGENTE', 'ADMIN')
   update(@Param('id') id: string, @Body() dto: UpdatePropertyDto) {
     return this.propertiesService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @Roles('AGENTE', 'ADMIN')
+  @HttpCode(HttpStatus.OK)
+  remove(@Param('id') id: string) {
+    return this.propertiesService.remove(id);
   }
 
   @Get()
