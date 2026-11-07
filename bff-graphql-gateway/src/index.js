@@ -58,7 +58,13 @@ const resolvers = {
       return status ? list.filter((c) => c.status === status) : list;
     },
     contract: async (_, { id }, ctx) => toContract(await rest(ctx, `${CONTRACTS_URL}/contracts/${encodeURIComponent(id)}`)),
-    employees: async (_, __, ctx) => (await rest(ctx, `${CONTRACTS_URL}/employees`)).data.map(toEmployee),
+    employees: async (_, __, ctx) => {
+      try {
+        const all = await rest(ctx, `${CONTRACTS_URL}/users`);
+        if (all && Array.isArray(all.data)) return all.data.map(toEmployee);
+      } catch (_) {}
+      return (await rest(ctx, `${CONTRACTS_URL}/employees`)).data.map(toEmployee);
+    },
     clients: async (_, __, ctx) => (await rest(ctx, `${CONTRACTS_URL}/clients`)).data,
     appointments: async (_, { status }, ctx) => {
       const list = (await rest(ctx, `${CONTRACTS_URL}/appointments`)).data.map(toAppointment);
