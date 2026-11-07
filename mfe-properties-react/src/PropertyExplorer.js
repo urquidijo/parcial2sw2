@@ -585,6 +585,40 @@
     const [estimate, setEstimate] = React.useState(null);
     const [estimating, setEstimating] = React.useState(false);
     const [estimateError, setEstimateError] = React.useState('');
+    const [uploadingPhotos, setUploadingPhotos] = React.useState(false);
+
+    const uploadFilesToS3 = async (fileList) => {
+      const files = Array.from(fileList || []).filter((f) => f.type.startsWith('image/')).slice(0, 10);
+      if (!files.length) return;
+      setUploadingPhotos(true);
+      setError('');
+      try {
+        const uploadedUrls = [];
+        for (const file of files) {
+          const res = await fetch(`${baseApi}/properties/upload-photo?filename=${encodeURIComponent(file.name)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': file.type || 'image/jpeg' },
+            body: file,
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.success === false) {
+            throw new Error(data.message || `Error al subir ${file.name}`);
+          }
+          if (data.data && data.data.url) uploadedUrls.push(data.data.url);
+        }
+        if (uploadedUrls.length) {
+          setForm((f) => {
+            const current = f.photos.split('\n').map((s) => s.trim()).filter(Boolean);
+            return { ...f, photos: [...current, ...uploadedUrls].join('\n') };
+          });
+          notify(`${uploadedUrls.length} foto(s) subida(s) a Amazon S3 (sw2p2).`);
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setUploadingPhotos(false);
+      }
+    };
 
     // CU03: precio sugerido por el modelo de random forest (ms-ml-python) a partir de los datos del formulario.
     const estimatePrice = async () => {
@@ -737,9 +771,14 @@
         ),
         field('Comodidades (separadas por coma)', 'amenities', { placeholder: 'Piscina, Gimnasio, Seguridad 24/7' }),
         e('div', { className: 'form-group' },
-          e('label', null, 'Fotos (una URL por línea; la primera es la principal)'),
+          e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' } },
+            e('label', null, 'Fotos (una URL por línea; la primera es la principal)'),
+            e('label', { className: 'btn btn-secondary', style: { padding: '0.3rem 0.7rem', fontSize: '0.78rem', cursor: uploadingPhotos ? 'wait' : 'pointer', opacity: uploadingPhotos ? 0.6 : 1 } },
+              withIcon('ImagePlus', uploadingPhotos ? 'Subiendo a S3…' : 'Subir fotos a S3', 14),
+              e('input', { type: 'file', accept: 'image/*', multiple: true, disabled: uploadingPhotos, style: { display: 'none' }, onChange: (ev) => { uploadFilesToS3(ev.target.files); ev.target.value = ''; } }))
+          ),
           e('textarea', { className: 'form-control', rows: 3, value: form.photos, onChange: set('photos'), placeholder: 'https://…' }),
-          e('small', { style: { color: 'var(--text-muted)' } }, 'Por ahora las fotos se cargan como enlaces; pronto se podrán subir archivos.')),
+          e('small', { style: { color: 'var(--text-muted)' } }, 'Sube archivos directamente a tu bucket Amazon S3 (sw2p2) o pega enlaces externos.')),
         row(
           field('Recorrido 3D (URL)', 'virtualTour3dUrl', { type: 'url' }),
           field('Folio real', 'folioReal')
