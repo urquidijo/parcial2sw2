@@ -59,6 +59,7 @@ Cada microservicio corre en una nube distinta. Las variables de cada uno están 
 4. Variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `KEYCLOAK_ISSUER_URI`.
 5. La URL queda como `http://habitat-billing.<región>.elasticbeanstalk.com`. Sirve para el gateway (llamada de servidor a servidor): `BILLING_SERVICE_URL=http://.../api/v1`.
 
+
 ### Google Cloud — ms-properties (Cloud Run)
 1. Activar las APIs Cloud Run, Cloud Build y Artifact Registry.
 2. En MongoDB Atlas → *Network Access* permitir `0.0.0.0/0` (Cloud Run no tiene IP fija).
