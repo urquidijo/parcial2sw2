@@ -18,7 +18,7 @@ db.properties.insertMany([
     areaSquareMeters: 185.5,
     parkingSlots: 2,
     status: "DISPONIBLE",
-    photos: ["https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80"],
+    photos: ["https://sw2p2.s3.us-east-1.amazonaws.com/properties/DEP-VALLE-101.jpg"],
     location: { type: "Point", coordinates: [-68.0892, -16.5398] },
     amenities: ["Piscina Climatizada", "Sauna", "Seguridad 24/7"]
   },
@@ -36,7 +36,7 @@ db.properties.insertMany([
     areaSquareMeters: 420.0,
     parkingSlots: 3,
     status: "DISPONIBLE",
-    photos: ["https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80"],
+    photos: ["https://sw2p2.s3.us-east-1.amazonaws.com/properties/CAS-URB-202.jpg"],
     location: { type: "Point", coordinates: [-63.1821, -17.7689] },
     amenities: ["Jardín Privado", "Parrillero", "Club House"]
   },
@@ -54,7 +54,7 @@ db.properties.insertMany([
     areaSquareMeters: 1250.0,
     parkingSlots: 10,
     status: "DISPONIBLE",
-    photos: ["https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80"],
+    photos: ["https://sw2p2.s3.us-east-1.amazonaws.com/properties/TER-IND-303.jpg"],
     location: { type: "Point", coordinates: [-66.1568, -17.3895] },
     amenities: ["Zonificación Z4", "Red de Gas", "Transformador Trifásico"]
   }

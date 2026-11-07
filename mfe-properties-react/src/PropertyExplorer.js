@@ -7,7 +7,7 @@
 (function () {
   const e = React.createElement;
 
-  const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80';
+  const DEFAULT_IMAGE = 'https://sw2p2.s3.us-east-1.amazonaws.com/properties/default-property.jpg';
   const DEFAULT_CENTER = [-17.7833, -63.1821]; // Santa Cruz de la Sierra
   const STAFF_EDITORS = ['AGENTE', 'ADMIN'];
   const INQUIRY_ROLES = ['CLIENTE', 'AGENTE', 'ATENCION', 'ADMIN'];
