@@ -474,7 +474,144 @@
         : 'No se detectaron objetos conocidos'));
   }
 
-  function PhotoAutofill({ onApply }) {
+  function PhotoAutofill({ baseApi, photosText, onPhotosChange, onApply }) {
+    const [status, setStatus] = React.useState('idle'); // idle | uploading | loading | analyzing | done
+    const [error, setError] = React.useState('');
+    const [results, setResults] = React.useState([]);
+    const [selected, setSelected] = React.useState({});
+    const [elapsed, setElapsed] = React.useState(0);
+    const [showUrls, setShowUrls] = React.useState(false);
+    const suggestions = suggestionsFrom(results);
+    const photoUrls = (photosText || '').split('\n').map((s) => s.trim()).filter(Boolean);
+
+    const removePhoto = (idx) => {
+      onPhotosChange(photoUrls.filter((_, i) => i !== idx).join('\n'));
+    };
+
+    const analyze = async (fileList) => {
+      const files = Array.from(fileList || []).filter((f) => f.type.startsWith('image/')).slice(0, 12);
+      if (!files.length) return;
+      setError('');
+      setResults([]);
+
+      // 1. Subir imágenes directamente a Amazon S3 (bucket sw2p2)
+      setStatus('uploading');
+      const uploadedUrls = [];
+      for (const file of files) {
+        try {
+          const res = await fetch(`${baseApi}/properties/upload-photo?filename=${encodeURIComponent(file.name)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': file.type || 'image/jpeg' },
+            body: file,
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.success === false) {
+            throw new Error(data.message || `Error al subir ${file.name} a S3`);
+          }
+          if (data.data && data.data.url) uploadedUrls.push(data.data.url);
+        } catch (err) {
+          setError(err.message);
+        }
+      }
+      if (uploadedUrls.length) {
+        onPhotosChange([...photoUrls, ...uploadedUrls].join('\n'));
+        notify(`${uploadedUrls.length} foto(s) subida(s) a Amazon S3 (sw2p2).`);
+      }
+
+      // 2. Analizar con IA en el navegador (TensorFlow.js COCO-SSD)
+      try {
+        setStatus('loading');
+        const model = await loadDetector();
+        setStatus('analyzing');
+        const t0 = performance.now();
+        const out = [];
+        for (const file of files) {
+          const img = await fileToImage(file);
+          const detections = await model.detect(img, 20, MIN_SCORE);
+          out.push({ name: file.name, img, detections });
+          setResults([...out]);
+        }
+        setElapsed(Math.round(performance.now() - t0));
+        setSelected(Object.fromEntries(suggestionsFrom(out).map((s) => [s.key, true])));
+        setStatus('done');
+      } catch (err) {
+        setError(err.message);
+        setStatus('idle');
+      }
+    };
+
+    const busy = status === 'uploading' || status === 'loading' || status === 'analyzing';
+    const btnText = status === 'uploading'
+      ? 'Subiendo a Amazon S3…'
+      : busy
+        ? 'Analizando con IA…'
+        : 'Subir fotos a Amazon S3';
+
+    return e('div', { style: { border: '2px dashed var(--brand, #2563eb)', borderRadius: 10, padding: '1rem 1.15rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#f8fafc' } },
+      e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' } },
+        e('div', { style: { flex: 1, minWidth: 220 } },
+          e('strong', { style: { fontSize: '0.95rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.45rem' } },
+            withIcon('ImagePlus', 'Fotos del inmueble (Amazon S3 + Autocompletado IA)', 18)),
+          e('div', { className: 'hint', style: { marginTop: '0.2rem' } },
+            'Sube las fotos desde tu dispositivo: se guardan en el bucket S3 (sw2p2) y la IA detecta camas, baños, cocina y garaje para rellenar la ficha.')),
+        e('label', { className: 'btn', style: { cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1, padding: '0.55rem 1rem', fontSize: '0.88rem', fontWeight: 600 } },
+          withIcon('ImagePlus', btnText, 16),
+          e('input', { type: 'file', accept: 'image/*', multiple: true, disabled: busy, style: { display: 'none' }, onChange: (ev) => { analyze(ev.target.files); ev.target.value = ''; } }))),
+
+      photoUrls.length > 0
+        ? e('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.4rem' } },
+            e('div', { style: { fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+              e('span', null, `${photoUrls.length} foto(s) en Amazon S3 / galería (la primera es la portada)`),
+              e('button', { type: 'button', onClick: () => setShowUrls((v) => !v), style: { background: 'none', border: 'none', color: 'var(--brand)', fontSize: '0.76rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' } },
+                showUrls ? 'Ocultar enlaces URL' : 'Ver / pegar enlaces URL')
+            ),
+            e('div', { style: { display: 'flex', gap: '0.55rem', overflowX: 'auto', paddingBottom: '0.25rem' } },
+              photoUrls.map((url, idx) => e('div', { key: url + idx, style: { position: 'relative', flexShrink: 0 } },
+                e('img', { src: url, alt: `Foto ${idx + 1}`, style: { width: 96, height: 68, objectFit: 'cover', borderRadius: 6, border: idx === 0 ? '2px solid var(--brand)' : '1px solid var(--border)' } }),
+                idx === 0 ? e('span', { style: { position: 'absolute', bottom: 4, left: 4, background: 'rgba(15,23,42,0.8)', color: '#fff', fontSize: '0.62rem', padding: '1px 5px', borderRadius: 4, fontWeight: 600 } }, 'Portada') : null,
+                e('button', {
+                  type: 'button', title: 'Quitar foto', onClick: () => removePhoto(idx),
+                  style: { position: 'absolute', top: 3, right: 3, width: 20, height: 20, borderRadius: '50%', border: 'none', background: 'rgba(15,23,42,0.75)', color: '#fff', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }
+                }, '×')
+              ))
+            )
+          )
+        : e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-muted)' } },
+            e('span', null, 'Aún no subiste fotos para este inmueble.'),
+            e('button', { type: 'button', onClick: () => setShowUrls((v) => !v), style: { background: 'none', border: 'none', color: 'var(--brand)', fontSize: '0.76rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' } },
+              showUrls ? 'Ocultar enlaces URL' : '¿Prefieres pegar enlaces URL?')
+          ),
+
+      showUrls
+        ? e('textarea', { className: 'form-control', rows: 2, value: photosText, onChange: (ev) => onPhotosChange(ev.target.value), placeholder: 'https://sw2p2.s3.us-east-1.amazonaws.com/properties/…' })
+        : null,
+
+      status === 'uploading' ? e('div', { className: 'hint', style: { color: 'var(--brand)', fontWeight: 500 } }, 'Subiendo fotos al bucket Amazon S3 (sw2p2)…') : null,
+      status === 'loading' ? e('div', { className: 'hint' }, 'Descargando el modelo de IA (≈5 MB, solo la primera vez)…') : null,
+      status === 'analyzing' ? e('div', { className: 'hint' }, `Analizando foto ${results.length + 1}…`) : null,
+      error ? e('div', { className: 'notice error' }, error) : null,
+      results.length
+        ? e('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.6rem' } },
+            results.map((r, i) => e(DetectionPreview, { key: r.name + i, result: r })))
+        : null,
+      status === 'done'
+        ? e('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.4rem' } },
+            suggestions.length
+              ? e(React.Fragment, null,
+                  e('div', { style: { fontSize: '0.84rem', fontWeight: 600 } }, 'Sugerencias detectadas por IA (revísalas antes de aplicar)'),
+                  suggestions.map((s) => e('label', { key: s.key, style: { display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84rem' } },
+                    e('input', { type: 'checkbox', checked: !!selected[s.key], onChange: (ev) => setSelected({ ...selected, [s.key]: ev.target.checked }) }),
+                    s.label)),
+                  e('div', { style: { display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' } },
+                    e('button', { type: 'button', className: 'btn', onClick: () => onApply(suggestions.filter((s) => selected[s.key])) }, 'Aplicar sugerencias'),
+                    e('span', { className: 'hint' }, `${results.length} foto(s) subida(s) a S3 y analizadas en ${(elapsed / 1000).toFixed(1)} s`)))
+              : e('div', { className: 'hint' }, 'Fotos guardadas en S3. No se encontró nada extra para sugerir.'),
+            e('span', { className: 'demo-only demo-tag' }, 'Amazon S3 (sw2p2) + TensorFlow.js · COCO-SSD lite'))
+        : null
+    );
+  }
+
+  function LegacyPhotoAutofillUnused({ onApply }) {
     const [status, setStatus] = React.useState('idle'); // idle | loading | analyzing | done
     const [error, setError] = React.useState('');
     const [results, setResults] = React.useState([]);
@@ -715,12 +852,18 @@
 
     return e(Modal, { title: isEdit ? `Editar ${property.code}` : 'Publicar nuevo inmueble', onClose, footer, maxWidth: 760 },
       e('form', { id: 'propertyForm', onSubmit: submit, style: { display: 'flex', flexDirection: 'column', gap: '0.9rem' } },
+        e(PhotoAutofill, {
+          baseApi,
+          photosText: form.photos,
+          onPhotosChange: (photos) => setForm((f) => ({ ...f, photos })),
+          onApply: applyPhotoSuggestions,
+        }),
         field('Título *', 'title', { required: true, minLength: 5, maxLength: 120, placeholder: 'Departamento moderno con balcón' }),
         row(select('Tipo *', 'propertyType', PROPERTY_TYPES), select('Entrega', 'deliveryType', DELIVERY_TYPES)),
         e('div', { className: 'form-group' },
           e('label', null, 'Descripción'),
           e('textarea', { className: 'form-control', rows: 3, maxLength: 2000, value: form.description, onChange: set('description') })),
-        e(PhotoAutofill, { onApply: applyPhotoSuggestions }),
+
         row(
           field('Precio (USD) *', 'price', { type: 'number', min: 1, step: 'any', required: true }),
           field('Arras (USD)', 'deposit', { type: 'number', min: 0, step: 'any' }),
@@ -764,25 +907,9 @@
             e('button', { type: 'button', className: 'btn btn-secondary', style: { padding: '0.3rem 0.7rem', fontSize: '0.78rem' }, onClick: useMyLocation, disabled: locating },
               withIcon('LocateFixed', locating ? 'Ubicando…' : 'Usar mi ubicación', 14))),
           e(LocationMap, { lat: parseFloat(form.latitude), lng: parseFloat(form.longitude), onPick: pickLocation, height: 200 }),
-          row(
-            field('Latitud', 'latitude', { type: 'number', step: 'any', min: -90, max: 90 }),
-            field('Longitud', 'longitude', { type: 'number', step: 'any', min: -180, max: 180 })
-          )
+          form.latitude && form.longitude ? e('small', { style: { color: 'var(--text-muted)' } }, 'Punto marcado en el mapa: ' + form.latitude + ', ' + form.longitude) : e('small', { style: { color: 'var(--text-muted)' } }, 'Haz clic sobre el mapa para marcar la ubicación del inmueble.')
         ),
         field('Comodidades (separadas por coma)', 'amenities', { placeholder: 'Piscina, Gimnasio, Seguridad 24/7' }),
-        e('div', { className: 'form-group' },
-          e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' } },
-            e('label', null, 'Fotos (una URL por línea; la primera es la principal)'),
-            e('label', { className: 'btn btn-secondary', style: { padding: '0.3rem 0.7rem', fontSize: '0.78rem', cursor: uploadingPhotos ? 'wait' : 'pointer', opacity: uploadingPhotos ? 0.6 : 1 } },
-              withIcon('ImagePlus', uploadingPhotos ? 'Subiendo a S3…' : 'Subir fotos a S3', 14),
-              e('input', { type: 'file', accept: 'image/*', multiple: true, disabled: uploadingPhotos, style: { display: 'none' }, onChange: (ev) => { uploadFilesToS3(ev.target.files); ev.target.value = ''; } }))
-          ),
-          e('textarea', { className: 'form-control', rows: 3, value: form.photos, onChange: set('photos'), placeholder: 'https://…' }),
-          e('small', { style: { color: 'var(--text-muted)' } }, 'Sube archivos directamente a tu bucket Amazon S3 (sw2p2) o pega enlaces externos.')),
-        row(
-          field('Recorrido 3D (URL)', 'virtualTour3dUrl', { type: 'url' }),
-          field('Folio real', 'folioReal')
-        ),
         error ? e('div', { className: 'notice error' }, error) : null
       )
     );
