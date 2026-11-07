@@ -1,0 +1,14 @@
+{
+  "AWSEBDockerrunVersion": "1",
+  "Image": {
+    "Name": "urquidijo/mcp-server:latest",
+    "Update": "true"
+  },
+  "Ports": [
+    {
+      "ContainerPort": 4100,
+      "HostPort": 80
+    }
+  ]
+}
+
