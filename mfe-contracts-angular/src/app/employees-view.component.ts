@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, Input, OnChanges, inject, signal } from '@angular/core';
+import { Component, Input, OnChanges, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ErpIconComponent } from './erp-icon.component';
 import { ErpModalComponent } from './erp-modal.component';
@@ -7,7 +7,7 @@ import { GraphqlService } from './graphql.service';
 import { HabitatUser, notify } from './habitat-bridge';
 import { Employee, SECTOR_LABELS, Sector } from './models';
 
-const EMPLOYEE_FIELDS = 'id name email sector active createdAt telegramLinked telegramAlerts';
+const EMPLOYEE_FIELDS = 'id name email role sector active createdAt telegramLinked telegramAlerts';
 const EMPLOYEES_QUERY = `query Employees { employees { ${EMPLOYEE_FIELDS} } }`;
 const CREATE_EMPLOYEE = `mutation CreateEmployee($input: CreateEmployeeInput!) { createEmployee(input: $input) { ${EMPLOYEE_FIELDS} } }`;
 const UPDATE_SECTOR = `mutation UpdateSector($id: ID!, $sector: Sector!) { updateEmployeeSector(id: $id, sector: $sector) { id sector } }`;
@@ -29,10 +29,16 @@ interface EmployeeForm {
   template: `
     <div class="erp-toolbar">
       <div>
-        <h2>Empleados</h2>
-        <p>Alta, baja y sector de cada empleado. La cuenta sirve para el portal, el dashboard y la app móvil.</p>
+        <h2>Gestión de Usuarios y Empleados</h2>
+        <p>Directorio completo de usuarios del sistema (Empleados, Clientes y Administradores). Alta, baja, sectores y alertas de Telegram.</p>
       </div>
       <div class="erp-actions">
+        <select class="filter-select" [ngModel]="roleFilter()" (ngModelChange)="roleFilter.set($event)">
+          <option value="ALL">Todos los usuarios ({{ employees().length }})</option>
+          <option value="EMPLEADO">Solo Empleados</option>
+          <option value="CLIENTE">Solo Clientes</option>
+          <option value="ADMIN">Administradores</option>
+        </select>
         <button class="btn btn-secondary" type="button" (click)="load()"><erp-icon name="RefreshCw" [size]="14" />Actualizar</button>
         @if (isAdmin()) {
           <button class="btn" type="button" (click)="openCreate()"><erp-icon name="UserPlus" [size]="14" />Nuevo empleado</button>
@@ -41,32 +47,38 @@ interface EmployeeForm {
     </div>
 
     @if (!isAdmin()) {
-      <div class="erp-empty">Solo el Administrador General gestiona empleados.</div>
+      <div class="erp-empty">Solo el Administrador General gestiona usuarios y empleados.</div>
     } @else {
       @if (error()) { <div class="erp-error">{{ error() }}</div> }
       @if (loading()) {
-        <div class="erp-empty">Cargando empleados…</div>
-      } @else if (employees().length === 0) {
-        <div class="erp-empty">Aún no hay empleados registrados.</div>
+        <div class="erp-empty">Cargando usuarios…</div>
+      } @else if (filteredUsers().length === 0) {
+        <div class="erp-empty">No hay usuarios que coincidan con el filtro seleccionado.</div>
       } @else {
         <div class="data-table-wrapper">
           <table class="data-table">
-            <thead><tr><th>Empleado</th><th>Sector</th><th>Estado</th><th>Telegram</th><th>Recibe alertas</th><th>Alta</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>Usuario</th><th>Rol / Sector</th><th>Estado</th><th>Telegram</th><th>Recibe alertas</th><th>Alta</th><th>Acciones</th></tr></thead>
             <tbody>
-              @for (e of employees(); track e.id) {
+              @for (e of filteredUsers(); track e.id) {
                 <tr>
                   <td><strong>{{ e.name }}</strong><div class="erp-muted">{{ e.email }}</div></td>
                   <td>
-                    <select class="filter-select" [ngModel]="e.sector" [disabled]="busyId() === e.id || !e.active" (ngModelChange)="changeSector(e, $event)">
-                      @for (s of sectors; track s) { <option [value]="s">{{ sectorLabels[s] }}</option> }
-                    </select>
+                    @if (e.role === 'EMPLEADO' || (!e.role && e.sector)) {
+                      <select class="filter-select" [ngModel]="e.sector" [disabled]="busyId() === e.id || !e.active" (ngModelChange)="changeSector(e, $event)">
+                        @for (s of sectors; track s) { <option [value]="s">{{ sectorLabels[s] }}</option> }
+                      </select>
+                    } @else if (e.role === 'ADMIN') {
+                      <span class="erp-status ok">Administrador General</span>
+                    } @else {
+                      <span class="erp-status">Cliente / Comprador</span>
+                    }
                   </td>
                   <td><span class="erp-status" [class]="e.active ? 'erp-status ok' : 'erp-status off'">{{ e.active ? 'Activo' : 'Dado de baja' }}</span></td>
                   <td>
                     @if (e.telegramLinked) {
                       <span class="erp-inline"><erp-icon name="CircleCheck" [size]="14" />Vinculado</span>
                     } @else {
-                      <span class="erp-muted" title="El empleado debe pulsar 'Conectar Telegram' en su cuenta">Sin vincular</span>
+                      <span class="erp-muted" title="El usuario debe pulsar 'Conectar Telegram' en su cuenta">Sin vincular</span>
                     }
                   </td>
                   <td>
@@ -78,10 +90,14 @@ interface EmployeeForm {
                   <td>{{ e.createdAt | date: 'dd/MM/yyyy' }}</td>
                   <td>
                     <div class="erp-row-actions">
-                      @if (e.active) {
-                        <button class="btn-logout" type="button" [disabled]="busyId() === e.id" (click)="setActive(e, false)">Dar de baja</button>
+                      @if (e.role !== 'ADMIN') {
+                        @if (e.active) {
+                          <button class="btn-logout" type="button" [disabled]="busyId() === e.id" (click)="setActive(e, false)">Dar de baja</button>
+                        } @else {
+                          <button class="btn btn-secondary" type="button" [disabled]="busyId() === e.id" (click)="setActive(e, true)">Reactivar</button>
+                        }
                       } @else {
-                        <button class="btn btn-secondary" type="button" [disabled]="busyId() === e.id" (click)="setActive(e, true)">Reactivar</button>
+                        <span class="erp-muted">Cuenta principal</span>
                       }
                     </div>
                   </td>
@@ -131,6 +147,13 @@ export class EmployeesViewComponent implements OnChanges {
   readonly sectors = Object.keys(SECTOR_LABELS) as Sector[];
   readonly sectorLabels = SECTOR_LABELS;
   readonly employees = signal<Employee[]>([]);
+  readonly roleFilter = signal<'ALL' | 'EMPLEADO' | 'CLIENTE' | 'ADMIN'>('ALL');
+  readonly filteredUsers = computed(() => {
+    const filter = this.roleFilter();
+    const all = this.employees();
+    if (filter === 'ALL') return all;
+    return all.filter((u) => (u.role || 'EMPLEADO') === filter);
+  });
   readonly loading = signal(true);
   readonly error = signal('');
   readonly busyId = signal<string | null>(null);

@@ -43,6 +43,7 @@ export interface Employee {
   id: string;
   name: string;
   email: string;
+  role?: 'ADMIN' | 'EMPLEADO' | 'CLIENTE' | string;
   sector: Sector | null;
   active: boolean;
   createdAt?: string;

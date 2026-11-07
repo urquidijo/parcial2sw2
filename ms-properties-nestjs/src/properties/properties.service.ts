@@ -10,7 +10,7 @@ import { DomainError, InvalidValueError, PropertyNotAvailableError } from './dom
 import { GeoLocation, Money } from './domain/value-objects';
 import { DomainEvent } from './domain/domain-events';
 
-const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
+const DEFAULT_IMAGE = 'https://sw2p2.s3.us-east-1.amazonaws.com/properties/default-property.jpg';
 
 @Injectable()
 export class PropertiesService implements OnModuleInit {
@@ -65,6 +65,17 @@ export class PropertiesService implements OnModuleInit {
     }
     await property.save();
     return this.formatPropertyResponse(property);
+  }
+
+  async remove(id: string): Promise<{ deleted: boolean; code: string; message: string }> {
+    const property = await this.findDocument(id);
+    if (property.status && property.status.startsWith('RESERVADO')) {
+      throw new ConflictException(`No se puede eliminar el inmueble ${property.code} mientras tiene una reserva activa.`);
+    }
+    const code = property.code;
+    await this.propertyModel.deleteOne({ _id: property._id }).exec();
+    this.logger.warn(`Inmueble ${code} eliminado del catálogo.`);
+    return { deleted: true, code, message: `Inmueble ${code} eliminado correctamente.` };
   }
 
   async findAll(status?: string, city?: string, propertyType?: string): Promise<any[]> {
@@ -330,8 +341,8 @@ export class PropertiesService implements OnModuleInit {
           deliveryType: 'ENTREGA_INMEDIATA',
           brokerName: 'Carlos Broker',
           amenities: ['Piscina Climatizada', 'Sauna', 'Seguridad 24/7', 'Ascensor Directo'],
-          photos: ['https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80'],
-          image: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
+          photos: ['https://sw2p2.s3.us-east-1.amazonaws.com/properties/DEP-VALLE-101.jpg'],
+          image: 'https://sw2p2.s3.us-east-1.amazonaws.com/properties/DEP-VALLE-101.jpg',
           location: { type: 'Point', coordinates: [-68.0892, -16.5398] },
           dynamicAttributes: { piso: 14, expensasMensualesUSD: 140, depositoBaulera: true },
         },
@@ -356,8 +367,8 @@ export class PropertiesService implements OnModuleInit {
           deliveryType: 'ENTREGA_INMEDIATA',
           brokerName: 'Carlos Broker',
           amenities: ['Jardín Privado', 'Parrillero / BBQ', 'Cancha de Pádel', 'Club House'],
-          photos: ['https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80'],
-          image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80',
+          photos: ['https://sw2p2.s3.us-east-1.amazonaws.com/properties/CAS-URB-202.jpg'],
+          image: 'https://sw2p2.s3.us-east-1.amazonaws.com/properties/CAS-URB-202.jpg',
           location: { type: 'Point', coordinates: [-63.1821, -17.7689] },
           dynamicAttributes: { antiguedadAnios: 2, riegoAutomatico: true },
         },
@@ -382,8 +393,8 @@ export class PropertiesService implements OnModuleInit {
           deliveryType: 'ENTREGA_INMEDIATA',
           brokerName: 'Carlos Broker',
           amenities: ['Acceso Pavimentado', 'Red de Gas Industrial', 'Transformador Trifásico'],
-          photos: ['https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80'],
-          image: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80',
+          photos: ['https://sw2p2.s3.us-east-1.amazonaws.com/properties/TER-IND-303.jpg'],
+          image: 'https://sw2p2.s3.us-east-1.amazonaws.com/properties/TER-IND-303.jpg',
           location: { type: 'Point', coordinates: [-66.1568, -17.3895] },
           dynamicAttributes: { frenteMetros: 25, fondoMetros: 50, zonificacion: 'Z4' },
         },

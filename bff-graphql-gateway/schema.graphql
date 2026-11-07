@@ -82,6 +82,7 @@ type Employee {
   id: ID!
   name: String!
   email: String!
+  role: String
   sector: Sector
   active: Boolean!
   createdAt: String
@@ -127,6 +128,7 @@ input CreateEmployeeInput {
   firstName: String!
   lastName: String!
   email: String!
+  role: String
   sector: Sector!
   temporaryPassword: String!
 }

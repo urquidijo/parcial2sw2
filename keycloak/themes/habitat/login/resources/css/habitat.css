@@ -1,0 +1,153 @@
+/* Tema Habitat Pro para Keycloak Login & Registro */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --pf-v5-global--FontFamily--text: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --pf-v5-global--FontFamily--heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --pf-v5-global--primary-color--100: #2563eb;
+  --pf-v5-global--primary-color--200: #1d4ed8;
+  --pf-v5-global--link--Color: #2563eb;
+  --pf-v5-global--link--Color--hover: #1d4ed8;
+}
+
+body.kcBodyClass,
+.login-pf body,
+.pf-v5-c-login {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(37, 99, 235, 0.12) 0%, transparent 45%),
+    radial-gradient(circle at 85% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 45%),
+    linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%) !important;
+  color: #0f172a !important;
+  min-height: 100vh;
+}
+
+/* Ocultar fondo oscuro por defecto de PatternFly */
+.pf-v5-c-login {
+  background-image: none !important;
+}
+
+/* Cabecera del realm "Habitat Pro" */
+#kc-header-wrapper,
+.pf-v5-c-login__header {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  color: #0f172a !important;
+  text-transform: none !important;
+}
+
+/* Tarjeta central de Login y Registro */
+.pf-v5-c-login__main,
+.card-pf {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-top: 4px solid #2563eb !important;
+  border-radius: 16px !important;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.14), 0 4px 16px -2px rgba(15, 23, 42, 0.05) !important;
+  padding: 2rem 2.25rem !important;
+  max-width: 460px !important;
+  margin: 0 auto !important;
+}
+
+.pf-v5-c-login__main-header,
+.login-pf-header {
+  margin-bottom: 1.25rem !important;
+}
+
+#kc-page-title,
+.pf-v5-c-title {
+  font-weight: 700 !important;
+  font-size: 1.35rem !important;
+  color: #0f172a !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* Campos de texto (Usuario, Contraseña, Nombre, Apellido, Email) */
+.pf-v5-c-form-control,
+input.form-control,
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background-color: #ffffff !important;
+  padding: 0.55rem 0.8rem !important;
+  font-size: 0.9rem !important;
+  color: #0f172a !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+   --pf-v5-c-form-control--after--BorderBottomWidth: 0px !important;
+}
+
+.pf-v5-c-form-control:focus-within,
+input.form-control:focus,
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16) !important;
+  outline: none !important;
+}
+
+/* Etiquetas de formulario */
+.pf-v5-c-form__label,
+label.control-label {
+  font-weight: 600 !important;
+  font-size: 0.82rem !important;
+  color: #334155 !important;
+  margin-bottom: 0.3rem !important;
+}
+
+/* Botón primario (Iniciar sesión / Registrarse) */
+#kc-login,
+input[type="submit"],
+.pf-v5-c-button.pf-m-primary,
+.btn-primary {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  border: 1px solid #1d4ed8 !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  font-size: 0.92rem !important;
+  padding: 0.65rem 1.1rem !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  cursor: pointer !important;
+}
+
+#kc-login:hover,
+input[type="submit"]:hover,
+.pf-v5-c-button.pf-m-primary:hover,
+.btn-primary:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35) !important;
+}
+
+/* Pie de tarjeta (enlace a Registro o Volver al Login) */
+#kc-registration,
+.pf-v5-c-login__main-footer-band,
+.login-pf-signup {
+  background: #f8fafc !important;
+  border-top: 1px solid #e2e8f0 !important;
+  border-radius: 0 0 12px 12px !important;
+  padding: 0.9rem 1rem !important;
+  margin-top: 1.25rem !important;
+  font-size: 0.85rem !important;
+  color: #64748b !important;
+}
+
+#kc-registration a,
+.pf-v5-c-login__main-footer-band a,
+#kc-form-options a {
+  color: #2563eb !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+}
+
+#kc-registration a:hover,
+.pf-v5-c-login__main-footer-band a:hover,
+#kc-form-options a:hover {
+  text-decoration: underline !important;
+}
+

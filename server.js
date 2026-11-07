@@ -219,6 +219,99 @@ function sendResult(res, result) {
   return res.status(result.status).json({ success: false, message });
 }
 
+app.use('/api', express.raw({ type: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], limit: '10mb' }));
+
+// Subida de fotos de inmuebles a Amazon S3 (bucket sw2p2) con AWS Signature V4 nativa (sin dependencias extra)
+const S3_BUCKET = process.env.S3_BUCKET || 'sw2p2';
+const S3_REGION = process.env.AWS_REGION || 'us-east-1';
+const ALLOWED_IMAGE_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+
+function hmacSha256(key, data) {
+  return crypto.createHmac('sha256', key).update(data, 'utf8').digest();
+}
+
+function sha256Hex(buf) {
+  return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+async function putObjectToS3({ bucket, region, key, body, contentType }) {
+  const accessKeyId = (process.env.AWS_ACCESS_KEY_ID || '').trim();
+  const secretAccessKey = (process.env.AWS_SECRET_ACCESS_KEY || '').trim();
+  const sessionToken = (process.env.AWS_SESSION_TOKEN || '').trim();
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error('Faltan AWS_ACCESS_KEY_ID o AWS_SECRET_ACCESS_KEY en las variables de entorno.');
+  }
+
+  const host = `${bucket}.s3.${region}.amazonaws.com`;
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const dateStamp = amzDate.slice(0, 8);
+  const payloadHash = sha256Hex(body);
+  const canonicalUri = '/' + key.split('/').map(encodeURIComponent).join('/');
+
+  const headersToSign = {
+    'content-type': contentType,
+    host,
+    'x-amz-content-sha256': payloadHash,
+    'x-amz-date': amzDate,
+    ...(sessionToken ? { 'x-amz-security-token': sessionToken } : {}),
+  };
+  const sortedHeaderKeys = Object.keys(headersToSign).sort();
+  const canonicalHeaders = sortedHeaderKeys.map((k) => `${k}:${headersToSign[k]}\n`).join('');
+  const signedHeaders = sortedHeaderKeys.join(';');
+
+  const canonicalRequest = ['PUT', canonicalUri, '', canonicalHeaders, signedHeaders, payloadHash].join('\n');
+  const credentialScope = `${dateStamp}/${region}/s3/aws4_request`;
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, credentialScope, sha256Hex(canonicalRequest)].join('\n');
+
+  const kDate = hmacSha256(`AWS4${secretAccessKey}`, dateStamp);
+  const kRegion = hmacSha256(kDate, region);
+  const kService = hmacSha256(kRegion, 's3');
+  const kSigning = hmacSha256(kService, 'aws4_request');
+  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign, 'utf8').digest('hex');
+
+  const authorization = `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  const url = `https://${host}${canonicalUri}`;
+
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': contentType,
+      'x-amz-content-sha256': payloadHash,
+      'x-amz-date': amzDate,
+      ...(sessionToken ? { 'x-amz-security-token': sessionToken } : {}),
+      Authorization: authorization,
+    },
+    body,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Error al subir a S3 (${res.status}): ${errText.slice(0, 200)}`);
+  }
+  return url;
+}
+
+app.post('/api/properties/upload-photo', requireRoles('AGENTE', 'ADMIN'), async (req, res) => {
+  try {
+    const contentType = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+    const ext = ALLOWED_IMAGE_EXT[contentType];
+    if (!ext) {
+      return res.status(400).json({ success: false, message: 'Formato no permitido. Usa imágenes JPG, PNG, WEBP o GIF.' });
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ success: false, message: 'El archivo de imagen está vacío.' });
+    }
+    const rawName = String(req.query.filename || 'foto').replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^.]+$/, '').slice(0, 40) || 'foto';
+    const key = `properties/${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${rawName}.${ext}`;
+    const url = await putObjectToS3({ bucket: S3_BUCKET, region: S3_REGION, key, body: req.body, contentType });
+    return res.status(201).json({ success: true, data: { url, key, bucket: S3_BUCKET } });
+  } catch (err) {
+    console.error('[S3 upload]', err.message);
+    return res.status(502).json({ success: false, message: err.message || 'No se pudo subir la imagen a S3.' });
+  }
+});
+
 app.get('/api/properties/search/geo', async (req, res) => {
   const params = new URLSearchParams(req.query);
   return sendResult(res, await fetchService(`${PROPERTIES_SVC}/search/geo?${params.toString()}`));
@@ -242,6 +335,12 @@ app.patch('/api/properties/:id', async (req, res) => {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req.body)
+  }));
+});
+
+app.delete('/api/properties/:id', requireRoles('AGENTE', 'ADMIN'), async (req, res) => {
+  return sendResult(res, await fetchService(`${PROPERTIES_SVC}/${encodeURIComponent(req.params.id)}`, {
+    method: 'DELETE',
   }));
 });
 

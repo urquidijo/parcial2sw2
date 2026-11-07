@@ -126,7 +126,14 @@ export class CreatePropertyDto {
 }
 
 // El código identifica al inmueble en reservas y contratos, así que no se edita.
-export class UpdatePropertyDto extends PartialType(OmitType(CreatePropertyDto, ['code'] as const)) {}
+export class UpdatePropertyDto extends PartialType(OmitType(CreatePropertyDto, ['code'] as const)) {
+  latitude?: number;
+  longitude?: number;
+  photos?: string[];
+  price?: number;
+  deposit?: number;
+  currency?: string;
+}
 
 export class ReserveLockDto {
   @IsString()
