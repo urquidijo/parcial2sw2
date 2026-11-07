@@ -18,8 +18,8 @@ dist/
 */dist/
 build/
 */build/
-out/
-*/out/
+# out/
+# */out/
 .angular/
 */.angular/
 .next/
