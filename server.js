@@ -607,6 +607,8 @@ app.post('/api/reservations', requireRoles('CLIENTE', 'ADMIN'), async (req, res)
     };
     // CU14: n8n envía la confirmación por Telegram (si el webhook está configurado). Un fallo aquí no revierte la reserva.
     const telegram = await notifyReservationConfirmed(reservation);
+    // CU14: y al Telegram del cliente, si lo vinculó
+    const telegramClient = await notifyClientReservation(reservation, clientId);
     // CU06: aviso push al cliente (en segundo plano)
     pushInBackground(clientId, {
       title: 'Reserva confirmada',
@@ -616,7 +618,7 @@ app.post('/api/reservations', requireRoles('CLIENTE', 'ADMIN'), async (req, res)
     return res.status(201).json({
       success: true,
       message: 'Reserva procesada exitosamente con el patrón Saga en MongoDB Atlas, Amazon DynamoDB y PostgreSQL Render',
-      data: { ...reservation, telegramNotification: telegram }
+      data: { ...reservation, telegramNotification: telegram, telegramClient }
     });
 
   } catch (err) {
@@ -1210,6 +1212,8 @@ app.get('/api/commissions/mine', requireRoles('AGENTE'), async (req, res) => {
 // t.me/<bot>?start=<código>, pulsa "Iniciar" y aquí se lee ese /start con getUpdates para conocer su chat.
 const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const STAFF_ROLES = ['ADMIN', 'AGENTE', 'LEGAL', 'FINANZAS', 'ATENCION'];
+// Vinculan su Telegram el personal (alertas del monitor) y el cliente (confirmación de su reserva, CU14).
+const TELEGRAM_LINK_ROLES = [...STAFF_ROLES, 'CLIENTE'];
 const telegramCodes = new Map();   // código -> { userId, expires }
 const telegramStarts = new Map();  // código -> chatId (leído de Telegram, pendiente de confirmar)
 let telegramOffset = 0;
@@ -1237,7 +1241,7 @@ async function readTelegramStarts() {
   }
 }
 
-app.post('/api/telegram/link', requireRoles(...STAFF_ROLES), async (req, res) => {
+app.post('/api/telegram/link', requireRoles(...TELEGRAM_LINK_ROLES), async (req, res) => {
   if (!TELEGRAM_TOKEN) return res.status(503).json({ success: false, message: 'El bot de Telegram no está configurado (TELEGRAM_BOT_TOKEN).' });
   const me = await callerProfile();
   if (!me) return res.status(502).json({ success: false, message: 'No se pudo obtener tu perfil desde ms-contracts.' });
@@ -1253,7 +1257,7 @@ app.post('/api/telegram/link', requireRoles(...STAFF_ROLES), async (req, res) =>
   return res.json({ success: true, data: { code, link: `https://t.me/${telegramBot.username}?start=${code}`, bot: telegramBot.username, expiresInSeconds: 600 } });
 });
 
-app.post('/api/telegram/link/verify', requireRoles(...STAFF_ROLES), async (req, res) => {
+app.post('/api/telegram/link/verify', requireRoles(...TELEGRAM_LINK_ROLES), async (req, res) => {
   const code = String(req.body?.code || '');
   const entry = telegramCodes.get(code);
   if (!entry || entry.expires < Date.now()) {
@@ -1277,13 +1281,44 @@ app.post('/api/telegram/link/verify', requireRoles(...STAFF_ROLES), async (req, 
   if (!saved.ok) return sendResult(res, saved);
   telegramCodes.delete(code);
   telegramStarts.delete(code);
-  telegramApi('sendMessage', { chat_id: chatId, text: `✅ Listo, ${me.name}: tu Telegram quedó vinculado a Habitat Pro. Aquí recibirás las alertas que te asigne el Administrador.` }).catch(() => {});
+  const welcome = me.role === 'CLIENTE'
+    ? `✅ Listo, ${me.name}: tu Telegram quedó vinculado a Habitat Pro. Aquí recibirás la confirmación de tus reservas.`
+    : `✅ Listo, ${me.name}: tu Telegram quedó vinculado a Habitat Pro. Aquí recibirás las alertas que te asigne el Administrador.`;
+  telegramApi('sendMessage', { chat_id: chatId, text: welcome }).catch(() => {});
   return res.json({ success: true, data: { linked: true, user: saved.data.user } });
 });
 
-app.delete('/api/telegram/link', requireRoles(...STAFF_ROLES), async (req, res) => {
+app.delete('/api/telegram/link', requireRoles(...TELEGRAM_LINK_ROLES), async (req, res) => {
   return passthrough(res, await fetchService(`${CONTRACTS_SVC}/users/me/telegram`, { method: 'DELETE' }));
 });
+
+// CU14: confirmación de la reserva al Telegram del propio cliente, si lo vinculó (su chat está en ms-contracts).
+// Devuelve ENVIADA, SIN_TELEGRAM (no lo vinculó), NO_CONFIGURADA o ERROR. Un fallo aquí no revierte la reserva.
+async function notifyClientReservation(reservation, clientId) {
+  if (!TELEGRAM_TOKEN) return 'NO_CONFIGURADA';
+  try {
+    const attempt = (async () => {
+      const authorization = await serviceAuthorization();
+      const res = await fetch(`${CONTRACTS_SVC}/telegram/chat?userId=${enc(String(clientId))}`, { headers: { Authorization: authorization } });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || `ms-contracts respondió HTTP ${res.status}`);
+      if (!body.linked || !body.chatId) return 'SIN_TELEGRAM';
+      const vence = new Date(reservation.expiresAt).toLocaleString('es-BO', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/La_Paz' });
+      const text = [
+        `✅ Reserva confirmada: ${reservation.propertyTitle}`,
+        `Arras cobradas: $${Number(reservation.depositAmount).toLocaleString('es-BO')} USD`,
+        `Reserva ${reservation.reservationId}${reservation.contractNumber ? ` · Pre-contrato ${reservation.contractNumber}` : ''}`,
+        `Tienes 48 h para formalizar el contrato (hasta el ${vence}).`
+      ].join('\n');
+      await telegramApi('sendMessage', { chat_id: body.chatId, text });
+      return 'ENVIADA';
+    })();
+    return await Promise.race([attempt, new Promise((_, reject) => setTimeout(() => reject(new Error('tiempo de espera agotado')), 6000))]);
+  } catch (err) {
+    console.warn(`⚠️ [Telegram] No se pudo avisar al cliente de la reserva ${reservation.reservationId}: ${err.message}`);
+    return 'ERROR';
+  }
+}
 
 // CU14: avisa a n8n que se confirmó una reserva; el flujo n8n/habitat_reserva_telegram.json la envía por Telegram.
 // Sin N8N_RESERVATION_WEBHOOK_URL no hace nada. El secreto viaja en X-Habitat-Secret (Header Auth del webhook).

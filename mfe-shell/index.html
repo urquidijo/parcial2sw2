@@ -1742,7 +1742,7 @@
         <div class="form-group">
           <label>Teléfono de contacto *</label>
           <input type="tel" id="inputClientPhone" class="form-control" placeholder="+591 70012345" required>
-          <span class="hint">Para coordinar tu reserva. La confirmación llega por Telegram.</span>
+          <span class="hint" id="hintReservaTelegram">Para coordinar tu reserva.</span>
         </div>
 
         <div class="form-group">
@@ -2349,6 +2349,7 @@
 
     function actualizarBotonTelegram() {
       const btn = document.getElementById('btnTelegram');
+      // El cliente no tiene este botón: vincula su Telegram desde el formulario de reserva.
       if (!currentUser || currentUser.role === 'CLIENTE') { btn.classList.add('hidden'); return; }
       btn.classList.remove('hidden');
       btn.innerHTML = HabitatIcons.html(currentUser.telegramLinked ? 'CircleCheck' : 'Send', 14) +
@@ -2357,9 +2358,13 @@
 
     function renderTelegramModal(state = {}) {
       const body = document.getElementById('telegramModalBody');
+      const esCliente = currentUser.role === 'CLIENTE';
       if (currentUser.telegramLinked) {
+        const queRecibe = esCliente
+          ? 'Recibirás por Telegram la confirmación de tus reservas.'
+          : `Recibirás por Telegram las alertas del agente monitor${currentUser.telegramAlerts ? '' : ' cuando el Administrador te las active'}.`;
         body.innerHTML = `
-          <div class="notice">${HabitatIcons.html('CircleCheck')}<div><strong>Tu Telegram está vinculado.</strong> Recibirás por Telegram las alertas del agente monitor${currentUser.telegramAlerts ? '' : ' cuando el Administrador te las active'}.</div></div>
+          <div class="notice">${HabitatIcons.html('CircleCheck')}<div><strong>Tu Telegram está vinculado.</strong> ${queRecibe}</div></div>
           <p class="hint">Este Telegram solo está vinculado a tu cuenta: si lo vinculas en otra cuenta, se desvincula de esta.</p>
           <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
             <button class="btn-logout" onclick="desvincularTelegram()">Desvincular</button>
@@ -2370,9 +2375,11 @@
       const info = state.info;
       if (!info) {
         body.innerHTML = `
-          <p style="font-size:0.88rem;">Vincula tu Telegram para recibir las alertas del negocio (reservas por vencer, consultas sin responder, cobros pendientes).</p>
+          <p style="font-size:0.88rem;">${esCliente
+            ? 'Vincula tu Telegram para recibir ahí la confirmación de tus reservas.'
+            : 'Vincula tu Telegram para recibir las alertas del negocio (reservas por vencer, consultas sin responder, cobros pendientes).'}</p>
           <p class="hint">Telegram no permite que un bot escriba a un número: primero tienes que escribirle tú al bot, con un código que te damos aquí.</p>
-          <p class="hint">Cada empleado vincula su propio Telegram. Un mismo Telegram solo puede estar en una cuenta: si lo vinculas en otra, se desvincula de la anterior.</p>
+          <p class="hint">${esCliente ? 'Cada persona vincula su propio Telegram.' : 'Cada empleado vincula su propio Telegram.'} Un mismo Telegram solo puede estar en una cuenta: si lo vinculas en otra, se desvincula de la anterior.</p>
           ${state.error ? `<div class="notice error">${esc(state.error)}</div>` : ''}
           <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
             <button class="btn btn-secondary" onclick="cerrarTelegram()">Cancelar</button>
@@ -2489,6 +2496,7 @@
         currentUser.telegramLinked = true;
         currentUser.telegramAlerts = Boolean(data.data.user?.telegramAlerts);
         actualizarBotonTelegram();
+        actualizarAvisoReservaTelegram();
         renderTelegramModal();
         showToast('Telegram vinculado. Te enviamos un mensaje de confirmación.');
         window.dispatchEvent(new CustomEvent('habitat:refresh:contracts', { detail: { view: 'empleados' } }));
@@ -2499,7 +2507,7 @@
     }
 
     async function desvincularTelegram() {
-      if (!confirm('¿Desvincular tu Telegram? Dejarás de recibir las alertas.')) return;
+      if (!confirm(currentUser.role === 'CLIENTE' ? '¿Desvincular tu Telegram? Dejarás de recibir la confirmación de tus reservas.' : '¿Desvincular tu Telegram? Dejarás de recibir las alertas.')) return;
       try {
         const res = await fetch(`${API_URL}/telegram/link`, { method: 'DELETE' });
         const data = await res.json();
@@ -2507,6 +2515,7 @@
         currentUser.telegramLinked = false;
         currentUser.telegramAlerts = false;
         actualizarBotonTelegram();
+        actualizarAvisoReservaTelegram();
         renderTelegramModal();
         showToast('Telegram desvinculado.');
       } catch (e) {
@@ -2892,8 +2901,18 @@
       document.getElementById('inputClientName').value = `${currentUser.name} (${currentUser.email})`;
       document.getElementById('inputClientPhone').value = currentUser.phone || '+591 70012345';
       document.getElementById('inputDepositAmount').value = `$${selectedPropForRes.deposit.toLocaleString()} USD`;
+      actualizarAvisoReservaTelegram();
 
       document.getElementById('modalReserva').classList.add('open');
+    }
+
+    // El cliente recibe la confirmación por Telegram solo si vinculó su cuenta.
+    function actualizarAvisoReservaTelegram() {
+      const hint = document.getElementById('hintReservaTelegram');
+      if (!hint) return;
+      hint.innerHTML = currentUser?.telegramLinked
+        ? 'Para coordinar tu reserva. La confirmación te llegará por Telegram.'
+        : 'Para coordinar tu reserva. <a href="#" onclick="event.preventDefault(); abrirTelegram();">Conecta tu Telegram</a> si quieres recibir la confirmación ahí.';
     }
 
     function closeModal(modalId) {
@@ -2928,7 +2947,7 @@
         const data = await res.json();
         if (data.success) {
           closeModal('modalReserva');
-          const telegram = data.data?.telegramNotification === 'ENVIADA' ? ' Confirmación enviada por Telegram.' : '';
+          const telegram = data.data?.telegramClient === 'ENVIADA' ? ' Te enviamos la confirmación por Telegram.' : '';
           showToast(`¡Reserva ${data.data?.reservationId || ''} confirmada! Tienes 48 h para formalizar el contrato.${telegram}`);
           await cargarPropiedadesDesdeBD();
           navigate('reservas');

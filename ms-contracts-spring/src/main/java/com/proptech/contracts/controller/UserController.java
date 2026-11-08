@@ -50,6 +50,17 @@ public class UserController {
         return ResponseEntity.ok(Map.of("success", true, "count", recipients.size(), "data", recipients));
     }
 
+    // CU14: chat de Telegram de un usuario para avisarle de su reserva (solo ADMIN, ver SecurityConfig).
+    @GetMapping("/telegram/chat")
+    public ResponseEntity<?> telegramChat(@RequestParam String userId) {
+        String chatId = userService.telegramChatOf(userId).orElse(null);
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("success", true);
+        body.put("linked", chatId != null);
+        body.put("chatId", chatId);
+        return ResponseEntity.ok(body);
+    }
+
     // Clientes para elegir al generar un contrato (Legal) o asignar una visita.
     @GetMapping("/clients")
     public ResponseEntity<?> getClients() {

@@ -110,6 +110,15 @@ public class UserService {
                 .toList();
     }
 
+    // CU14: chat de Telegram de un usuario (el cliente que reservó) para enviarle su confirmación. Vacío si no lo vinculó.
+    @Transactional(readOnly = true)
+    public Optional<String> telegramChatOf(String userId) {
+        return userRepository.findById(userId)
+                .filter(User::isActive)
+                .filter(User::isTelegramLinked)
+                .map(User::getTelegramChatId);
+    }
+
     @Transactional
     public void seedInitialUsers() {
         if (userRepository.count() > 0) return;
