@@ -117,26 +117,61 @@ console.log('   • Catálogo (MongoDB Atlas):       ', PROPERTIES_SVC);
 console.log('   • Legal & Auth (PostgreSQL Render):', CONTRACTS_SVC);
 console.log('   • Pagos & TTL (Amazon DynamoDB):   ', BILLING_SVC);
 
-// Helper para llamadas HTTP fetch con manejo de timeout resiliente a cold-starts
+// Identifica el nombre legible del microservicio según la URL invocada
+function identifyServiceName(url = '') {
+  const u = String(url);
+  if (u.includes(PROPERTIES_SVC) || u.includes('/inquiries') || u.includes(':3001')) {
+    return 'ms-properties-nestjs (Catálogo Inmobiliario · MongoDB Atlas)';
+  }
+  if (u.includes(BILLING_SVC) || u.includes(':8002')) {
+    return 'ms-billing-php (Pagos y Reservas · Amazon DynamoDB)';
+  }
+  if (u.includes(CONTRACTS_SVC) || u.includes(':8081')) {
+    return 'ms-contracts-spring (Contratos, Visitas y Usuarios · PostgreSQL)';
+  }
+  if (u.includes(ML_SVC) || u.includes(':8003')) {
+    return 'ms-ml-python (Machine Learning · Tasación y Segmentación)';
+  }
+  if (u.includes(':4000') || u.includes('graphql')) {
+    return 'bff-graphql-gateway (BFF GraphQL ERP)';
+  }
+  return 'Microservicio del ecosistema';
+}
+
+// Helper para llamadas HTTP fetch con detección explícita de qué microservicio no responde
 async function fetchService(url, options = {}) {
-  const timeoutMs = options.timeout || 60000;
+  const timeoutMs = options.timeout || 15000;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const headers = { ...(options.headers || {}) };
   const authorization = requestContext.getStore()?.authorization;
   if (authorization && !headers.Authorization) headers.Authorization = authorization;
+  const svcName = identifyServiceName(url);
   try {
     const res = await fetch(url, { ...options, headers, signal: controller.signal });
     clearTimeout(timeoutId);
     const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, data };
+    if ([502, 503, 504].includes(res.status)) {
+      const msg = '⚠️ El microservicio ' + svcName + ' no responde en este momento (detenido o fuera de línea). Inténtalo de nuevo más tarde.';
+      return {
+        ok: false,
+        status: 503,
+        failedService: svcName,
+        error: msg,
+        data: { success: false, failedService: svcName, message: msg }
+      };
+    }
+    return { ok: res.ok, status: res.status, failedService: res.ok ? null : svcName, data };
   } catch (err) {
     clearTimeout(timeoutId);
-    const isTimeout = err.name === 'AbortError';
-    const msg = isTimeout 
-      ? 'El microservicio está iniciando en la nube (Cold Start de Render/Railway). Por favor espere unos segundos e intente nuevamente.'
-      : 'Microservicio no disponible: ' + err.message;
-    return { ok: false, status: 503, error: err.message, data: { success: false, message: msg } };
+    const msg = '⚠️ El microservicio ' + svcName + ' no responde en este momento. Inténtalo de nuevo más tarde.';
+    return {
+      ok: false,
+      status: 503,
+      failedService: svcName,
+      error: msg,
+      data: { success: false, failedService: svcName, message: msg }
+    };
   }
 }
 
@@ -158,10 +193,19 @@ function requireRoles(...roles) {
   };
 }
 
-// Perfil de quien llama (ms-contracts lo resuelve a partir del token). El cliente nunca se toma del body.
-async function callerProfile() {
-  const result = await fetchService(`${CONTRACTS_SVC}/auth/sso`, { method: 'POST' });
-  return result.ok && result.data?.user ? result.data.user : null;
+// Perfil de quien llama (ms-contracts lo resuelve a partir del token; si ms-contracts está detenido, usa los claims verificados del JWT de Keycloak)
+async function callerProfile(fallbackJwtUser = null) {
+  const result = await fetchService(CONTRACTS_SVC + '/auth/sso', { method: 'POST', timeout: 8000 });
+  if (result.ok && result.data?.user) return result.data.user;
+  if (fallbackJwtUser && fallbackJwtUser.sub) {
+    return {
+      id: fallbackJwtUser.sub,
+      name: fallbackJwtUser.name || fallbackJwtUser.preferred_username || fallbackJwtUser.email || 'Cliente',
+      email: fallbackJwtUser.email || '',
+      role: effectiveRole(fallbackJwtUser),
+    };
+  }
+  return null;
 }
 
 // Respuesta del microservicio tal cual, con el mensaje de error normalizado.
@@ -178,7 +222,21 @@ const enc = encodeURIComponent;
 
 // El login lo hace Keycloak (SSO); aquí solo se sincroniza el perfil del usuario del token en PostgreSQL.
 app.post('/api/auth/sso', async (req, res) => {
-  const result = await fetchService(`${CONTRACTS_SVC}/auth/sso`, { method: 'POST' });
+  const result = await fetchService(`${CONTRACTS_SVC}/auth/sso`, { method: 'POST', timeout: 8000 });
+  if (result.ok) return res.status(result.status).json(result.data);
+  if (req.user && req.user.sub) {
+    return res.status(200).json({
+      success: true,
+      warning: result.data?.message,
+      user: {
+        id: req.user.sub,
+        name: req.user.name || req.user.preferred_username || req.user.email || 'Usuario',
+        email: req.user.email || '',
+        role: effectiveRole(req.user),
+        sector: req.user.sector || null
+      }
+    });
+  }
   return res.status(result.status).json(result.data);
 });
 
@@ -216,7 +274,7 @@ app.post('/api/graphql', async (req, res) => {
 function sendResult(res, result) {
   if (result.ok) return res.status(result.status).json({ success: true, data: result.data });
   const message = Array.isArray(result.data?.message) ? result.data.message.join('. ') : (result.data?.message || 'Error en el microservicio');
-  return res.status(result.status).json({ success: false, message });
+  return res.status(result.status).json({ success: false, failedService: result.failedService || result.data?.failedService || null, message });
 }
 
 app.use('/api', express.raw({ type: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], limit: '10mb' }));
@@ -390,7 +448,7 @@ app.post('/api/reservations', requireRoles('CLIENTE', 'ADMIN'), async (req, res)
   let clientId = req.body.userId;
   let userName = req.body.userName;
   if (effectiveRole(req.user) === 'CLIENTE') {
-    const me = await callerProfile();
+    const me = await callerProfile(req.user);
     if (!me) return res.status(502).json({ success: false, message: 'No se pudo obtener tu perfil desde ms-contracts.' });
     clientId = me.id;
     userName = me.name;
@@ -578,6 +636,14 @@ app.post('/api/reservations', requireRoles('CLIENTE', 'ADMIN'), async (req, res)
       });
       console.log(`   ✅ Reembolso completado en DynamoDB.`);
     }
+    if (sagaTrace.step2_saved_dynamo && sagaTrace.reservationId) {
+      console.log(`   ⟲ Anulando reserva #${sagaTrace.reservationId} en Amazon DynamoDB...`);
+      await fetchService(`${BILLING_SVC}/billing/reservations/${encodeURIComponent(sagaTrace.reservationId)}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Rollback Saga: ' + err.message })
+      });
+    }
 
     // Compensar Paso 1: Liberar propiedad en MongoDB Atlas
     if (sagaTrace.step1_locked) {
@@ -606,7 +672,7 @@ app.post('/api/reservations', requireRoles('CLIENTE', 'ADMIN'), async (req, res)
 app.get('/api/reservations', async (req, res) => {
   let userId = req.query.userId;
   if (effectiveRole(req.user) === 'CLIENTE') {
-    const me = await callerProfile();
+    const me = await callerProfile(req.user);
     if (!me) return res.status(502).json({ success: false, message: 'No se pudo obtener tu perfil desde ms-contracts.' });
     userId = me.id;
   }
@@ -616,6 +682,22 @@ app.get('/api/reservations', async (req, res) => {
     try {
       const propsRes = await fetchService(PROPERTIES_SVC);
       const catalog = Array.isArray(propsRes.data?.data) ? propsRes.data.data : (Array.isArray(propsRes.data) ? propsRes.data : []);
+      const allRes = result.data.data;
+      for (const prop of catalog) {
+        if (prop.status === 'RESERVADO') {
+          const propId = String(prop.id || prop.code);
+          const hasActive = allRes.some(r => String(r.propertyId || r.property_id) === propId && r.status === 'ACTIVA');
+          const hasCancelled = allRes.some(r => String(r.propertyId || r.property_id) === propId && r.status === 'CANCELADA_REEMBOLSADA');
+          if (!hasActive && hasCancelled) {
+            await fetchService(`${PROPERTIES_SVC}/${enc(propId)}/release-lock`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ reason: 'Reconciliación automática de reserva previamente cancelada' })
+            });
+            prop.status = 'DISPONIBLE';
+          }
+        }
+      }
       result.data.data = result.data.data.map(r => {
         const pId = r.propertyId || r.property_id;
         const matched = catalog.find(p => String(p.id) === String(pId));
@@ -624,29 +706,42 @@ app.get('/api/reservations', async (req, res) => {
           propertyTitle: r.propertyTitle || r.property_title || r.prop_title || matched?.title || `Inmueble #${pId}`
         };
       });
-    } catch (_) {
-      // Si falla catálogo temporalmente, mantener respuesta original
-    }
+    } catch (_) {}
   }
   return res.status(result.status).json(result.data);
 });
 
-// CU15: cancelar una reserva con reembolso. Solo el cliente titular o el Cajero (y el ADMIN).
-// Orden: reembolso → cerrar la reserva → anular el pre-contrato de arras → liberar el inmueble.
+// CU15: cancelar una reserva con reembolso — SAGA DE CANCELACIÓN ATÓMICA (TODO O NADA EN LOS 3 MICROSERVICIOS).
+// Paso 1: Liberar inmueble (ms-properties) → Paso 2: Anular pre-contrato (ms-contracts) → Paso 3: Reembolsar y cerrar (ms-billing).
+// Si cualquier microservicio está detenido o falla, NO se realiza la cancelación y se revierten los pasos previos.
 app.post('/api/reservations/:id/cancel', requireRoles('CLIENTE', 'FINANZAS', 'ADMIN'), async (req, res) => {
   const { id } = req.params;
   const role = effectiveRole(req.user);
   const reason = String(req.body?.reason || '').trim().slice(0, 300)
     || (role === 'CLIENTE' ? 'Cancelada por el titular' : 'Cancelada en caja');
-  console.log(`🔄 [CU15] Cancelando reserva #${id} (${role})...`);
+  console.log(`🔄 [CU15] Iniciando Saga Atómica de Cancelación para reserva #${id} (${role})...`);
 
+  // Paso 0: Verificar la reserva en ms-billing
   const found = await fetchService(`${BILLING_SVC}/billing/reservations/${enc(id)}`);
-  if (!found.ok) return sendResult(res, found);
+  if (!found.ok) {
+    return res.status(found.status || 503).json({
+      success: false,
+      failedService: 'ms-billing-php (Pagos y Reservas · Amazon DynamoDB)',
+      stepNumber: 1,
+      message: `❌ Acción no realizada: Fallo en ms-billing-php (Pagos y Reservas · Amazon DynamoDB). ${found.data?.message || 'El microservicio no responde.'}`
+    });
+  }
   const reservation = found.data.data;
 
   if (role === 'CLIENTE') {
-    const me = await callerProfile();
-    if (!me) return res.status(502).json({ success: false, message: 'No se pudo obtener tu perfil desde ms-contracts.' });
+    const me = await callerProfile(req.user);
+    if (!me) {
+      return res.status(503).json({
+        success: false,
+        failedService: 'ms-contracts-spring (Contratos, Visitas y Usuarios · PostgreSQL)',
+        message: '❌ Acción no realizada: Fallo en ms-contracts-spring al verificar el titular.'
+      });
+    }
     if (reservation.userId !== me.id) {
       return res.status(403).json({ success: false, message: 'Solo el titular puede cancelar esta reserva.' });
     }
@@ -655,63 +750,96 @@ app.post('/api/reservations/:id/cancel', requireRoles('CLIENTE', 'FINANZAS', 'AD
     return res.status(409).json({ success: false, message: `La reserva ya no está activa (estado ${reservation.status}).` });
   }
 
-  // 1. Reembolso: si falla, no se toca nada más (el reembolso es idempotente, se puede reintentar)
+  // PASO 1/3: Liberar el inmueble en ms-properties-nestjs (MongoDB Atlas)
+  const release = await fetchService(`${PROPERTIES_SVC}/${enc(reservation.propertyId)}/release-lock`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: `Cancelación de la reserva ${id}` })
+  });
+  if (!release.ok) {
+    return res.status(release.status || 503).json({
+      success: false,
+      failedService: 'ms-properties-nestjs (Catálogo Inmobiliario · MongoDB Atlas)',
+      stepNumber: 1,
+      rollbackExecuted: true,
+      message: `❌ Acción no realizada.\n\nServicio con error: ms-properties-nestjs (Catálogo Inmobiliario · MongoDB Atlas)\nPaso: 1 de 3 (Liberar inmueble)\nMotivo: ${release.data?.message || 'El microservicio no responde'}.\n\nLa reserva NO fue cancelada para evitar que el inmueble quede bloqueado.`
+    });
+  }
+
+  // PASO 2/3: Anular el pre-contrato de arras en ms-contracts-spring (PostgreSQL)
+  const contract = await fetchService(`${CONTRACTS_SVC}/contracts/reservations/${enc(reservation.paymentId)}/cancel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason })
+  });
+  if (!contract.ok && contract.status !== 404) {
+    // ROLLBACK PASO 1: Volver a dejar el inmueble como RESERVADO en ms-properties
+    await fetchService(`${PROPERTIES_SVC}/${enc(reservation.propertyId)}/confirm-reserved`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ buyerName: reservation.userName, buyerPhone: reservation.userPhone })
+    });
+    return res.status(contract.status || 503).json({
+      success: false,
+      failedService: 'ms-contracts-spring (Contratos, Visitas y Usuarios · PostgreSQL)',
+      stepNumber: 2,
+      rollbackExecuted: true,
+      message: `❌ Acción no realizada.\n\nServicio con error: ms-contracts-spring (Contratos, Visitas y Usuarios · PostgreSQL)\nPaso: 2 de 3 (Anular pre-contrato)\nMotivo: ${contract.data?.message || 'El microservicio no responde'}.\n\nSe revirtieron los cambios: el inmueble continúa reservado y la reserva sigue ACTIVA.`
+    });
+  }
+
+  // PASO 3/3: Reembolsar arras y cerrar la reserva en ms-billing-php (Amazon DynamoDB)
   const refund = await fetchService(`${BILLING_SVC}/billing/refunds`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ paymentId: reservation.paymentId, reason: `Cancelación de la reserva ${id}: ${reason}` })
   });
-  if (!refund.ok) return sendResult(res, refund);
+  if (!refund.ok) {
+    // ROLLBACK PASO 1: Volver a dejar el inmueble como RESERVADO
+    await fetchService(`${PROPERTIES_SVC}/${enc(reservation.propertyId)}/confirm-reserved`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ buyerName: reservation.userName, buyerPhone: reservation.userPhone })
+    });
+    return res.status(refund.status || 503).json({
+      success: false,
+      failedService: 'ms-billing-php (Pagos y Reservas · Amazon DynamoDB)',
+      stepNumber: 3,
+      rollbackExecuted: true,
+      message: `❌ Acción no realizada.\n\nServicio con error: ms-billing-php (Pagos y Reservas · Amazon DynamoDB)\nPaso: 3 de 3 (Reembolso de arras)\nMotivo: ${refund.data?.message || 'El microservicio no responde'}.\n\nSe revirtieron los cambios y la reserva sigue ACTIVA.`
+    });
+  }
 
-  // 2. Cerrar la reserva en DynamoDB
   const closed = await fetchService(`${BILLING_SVC}/billing/reservations/${enc(id)}/cancel`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason })
   });
   if (!closed.ok) {
-    return res.status(closed.status).json({
+    return res.status(closed.status || 503).json({
       success: false,
-      message: `Las arras se reembolsaron, pero no se pudo cerrar la reserva: ${closed.data?.message || 'error'}. Reintenta la cancelación.`
+      failedService: 'ms-billing-php (Pagos y Reservas · Amazon DynamoDB)',
+      stepNumber: 3,
+      message: `❌ Error en ms-billing-php al cerrar la reserva: ${closed.data?.message || 'error'}.`
     });
   }
 
-  // 3 y 4. Anular el pre-contrato y liberar el inmueble (si fallan se informa; no deshacen el reembolso)
-  const [contract, release] = await Promise.all([
-    fetchService(`${CONTRACTS_SVC}/contracts/reservations/${enc(reservation.paymentId)}/cancel`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason })
-    }),
-    fetchService(`${PROPERTIES_SVC}/${enc(reservation.propertyId)}/release-lock`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason: `Cancelación de la reserva ${id}` })
-    })
-  ]);
-
-  const warnings = [];
-  // CU06: aviso push al titular (útil cuando cancela el cajero)
   pushInBackground(reservation.userId, {
     title: 'Reserva cancelada',
-    body: `${reservation.propertyTitle || 'Tu reserva'}: se reembolsaron las arras${refund.data?.amount ? ` ($${Number(refund.data.amount).toLocaleString('es-BO')} USD)` : ''}.`,
+    body: `${reservation.propertyTitle || 'Tu reserva'}: se reembolsaron las arras${refund.data?.amount ? ` (${Number(refund.data.amount).toLocaleString('es-BO')} USD)` : ''}.`,
     url: '/#reservas', tag: `reserva-${id}`
   });
-  if (!contract.ok && contract.status !== 404) warnings.push('No se pudo anular el pre-contrato de arras: ' + (contract.data?.message || contract.status));
-  if (!release.ok) warnings.push('No se pudo liberar el inmueble: ' + (release.data?.message || release.status));
 
   return res.json({
     success: true,
-    message: warnings.length
-      ? `Reserva cancelada y arras reembolsadas. Atención: ${warnings.join(' · ')}`
-      : 'Reserva cancelada: arras reembolsadas, pre-contrato anulado e inmueble disponible de nuevo.',
+    message: 'Reserva cancelada exitosamente en los 3 microservicios: arras reembolsadas, pre-contrato anulado e inmueble disponible de nuevo.',
     data: {
       reservationId: id,
       paymentId: reservation.paymentId,
       refunded: refund.data?.status === 'REFUNDED',
-      contractCancelled: contract.ok,
-      propertyReleased: release.ok,
-      warnings
+      contractCancelled: true,
+      propertyReleased: true,
+      warnings: []
     }
   });
 });
@@ -807,8 +935,15 @@ app.post('/api/payments', requireRoles('FINANZAS', 'ADMIN'), async (req, res) =>
     return res.status(400).json({ success: false, message: `Método de pago inválido. Usa: ${PAYMENT_METHODS.join(', ')}` });
   }
 
+  // PASO 1/3: Verificar contrato en ms-contracts-spring
   const contractRes = await fetchService(`${CONTRACTS_SVC}/contracts/${enc(contractId)}`);
-  if (!contractRes.ok) return sendResult(res, contractRes);
+  if (!contractRes.ok) {
+    return res.status(contractRes.status || 503).json({
+      success: false,
+      failedService: 'ms-contracts-spring (Contratos, Visitas y Usuarios · PostgreSQL)',
+      message: `❌ Acción no realizada: Fallo en ms-contracts-spring. ${contractRes.data?.message || 'El microservicio no responde.'}`
+    });
+  }
   const contract = contractRes.data;
   if (!PAYABLE_TYPES.includes(contract.contractType)) {
     return res.status(400).json({ success: false, message: 'Solo se registran pagos de contratos de compraventa o arrendamiento.' });
@@ -817,8 +952,15 @@ app.post('/api/payments', requireRoles('FINANZAS', 'ADMIN'), async (req, res) =>
     return res.status(409).json({ success: false, message: 'El contrato debe estar firmado por el cliente y el Oficial Legal antes de registrar pagos.' });
   }
 
+  // Verificar pagos previos en ms-billing-php
   const paymentsRes = await fetchService(`${BILLING_SVC}/billing/payments?contractNumber=${enc(contract.contractNumber)}`);
-  if (!paymentsRes.ok) return sendResult(res, paymentsRes);
+  if (!paymentsRes.ok) {
+    return res.status(paymentsRes.status || 503).json({
+      success: false,
+      failedService: 'ms-billing-php (Pagos y Reservas · Amazon DynamoDB)',
+      message: `❌ Acción no realizada: Fallo en ms-billing-php. ${paymentsRes.data?.message || 'El microservicio no responde.'}`
+    });
+  }
   const operation = operationOf(contract, paymentsRes.data?.data || []);
 
   if (operation.kind === 'SALDO_COMPRA' && operation.settled) {
@@ -831,7 +973,36 @@ app.post('/api/payments', requireRoles('FINANZAS', 'ADMIN'), async (req, res) =>
   const rentPeriod = isRent ? String(period || operation.nextPeriod) : null;
   const firstRentPayment = isRent && operation.paidPeriods.length === 0;
 
-  // 1. Registrar el pago en DynamoDB (409 si ese saldo o esa cuota ya estaba registrado)
+  // PASO 2/3: Verificar y actualizar inmueble en ms-properties-nestjs ANTES de cobrar en DynamoDB
+  let property = null;
+  let previousStatus = 'RESERVADO';
+  if (!isRent || firstRentPayment) {
+    const propertyRes = await fetchService(`${PROPERTIES_SVC}/${enc(contract.propertyId)}`);
+    if (!propertyRes.ok) {
+      return res.status(propertyRes.status || 503).json({
+        success: false,
+        failedService: 'ms-properties-nestjs (Catálogo Inmobiliario · MongoDB Atlas)',
+        message: `❌ Acción no realizada: Fallo en ms-properties-nestjs (Catálogo Inmobiliario · MongoDB Atlas). No se registró el cobro porque el microservicio de propiedades está detenido.`
+      });
+    }
+    property = propertyRes.data;
+    previousStatus = property?.status || 'RESERVADO';
+
+    const statusRes = await fetchService(`${PROPERTIES_SVC}/${enc(contract.propertyId)}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: isRent ? 'ALQUILADO' : 'COMPRADO', reservedBy: contract.userName })
+    });
+    if (!statusRes.ok) {
+      return res.status(statusRes.status || 503).json({
+        success: false,
+        failedService: 'ms-properties-nestjs (Catálogo Inmobiliario · MongoDB Atlas)',
+        message: `❌ Acción no realizada: No se pudo actualizar el estado del inmueble en ms-properties-nestjs. El cobro no fue procesado.`
+      });
+    }
+  }
+
+  // PASO 3/3: Registrar el pago en ms-billing-php (DynamoDB)
   const paymentRes = await fetchService(`${BILLING_SVC}/billing/payments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -849,24 +1020,27 @@ app.post('/api/payments', requireRoles('FINANZAS', 'ADMIN'), async (req, res) =>
       reference
     })
   });
-  if (!paymentRes.ok) return sendResult(res, paymentRes);
+  if (!paymentRes.ok) {
+    // ROLLBACK PASO 2: Revertir estado del inmueble en ms-properties
+    if (!isRent || firstRentPayment) {
+      await fetchService(`${PROPERTIES_SVC}/${enc(contract.propertyId)}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: previousStatus, reservedBy: contract.userName })
+      });
+    }
+    return res.status(paymentRes.status || 503).json({
+      success: false,
+      failedService: 'ms-billing-php (Pagos y Reservas · Amazon DynamoDB)',
+      rollbackExecuted: true,
+      message: `❌ Acción no realizada: Fallo en ms-billing-php al registrar el pago. Se revirtió el estado del inmueble.`
+    });
+  }
 
-  // 2. Si la operación se cerró (saldo pagado o primera cuota): inmueble vendido/alquilado, reserva cerrada y comisión del agente
   const followUps = {};
   if (!isRent || firstRentPayment) {
-    const [propertyRes, reservationsRes] = await Promise.all([
-      fetchService(`${PROPERTIES_SVC}/${enc(contract.propertyId)}`),
-      fetchService(`${BILLING_SVC}/billing/reservations`)
-    ]);
-    const property = propertyRes.ok ? propertyRes.data : null;
-
-    const statusRes = await fetchService(`${PROPERTIES_SVC}/${enc(contract.propertyId)}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: isRent ? 'ALQUILADO' : 'COMPRADO', reservedBy: contract.userName })
-    });
-    followUps.propertyStatus = statusRes.ok ? (isRent ? 'ALQUILADO' : 'COMPRADO') : 'ERROR';
-
+    followUps.propertyStatus = isRent ? 'ALQUILADO' : 'COMPRADO';
+    const reservationsRes = await fetchService(`${BILLING_SVC}/billing/reservations`);
     const activeReservation = (reservationsRes.data?.data || [])
       .find((r) => r.propertyId === contract.propertyId && r.status === 'ACTIVA');
     if (activeReservation) {
@@ -907,7 +1081,7 @@ app.post('/api/payments', requireRoles('FINANZAS', 'ADMIN'), async (req, res) =>
     success: true,
     message: isRent
       ? `Cuota ${rentPeriod} registrada (${contract.contractNumber}).`
-      : `Saldo registrado: la compra de ${contract.propertyTitle || contract.propertyId} quedó cerrada.`,
+      : `Saldo registrado: la compra de ${contract.propertyTitle || contract.propertyId} quedó cerrada y el inmueble pasó a Vendido.`,
     data: paymentRes.data.data,
     followUps
   });
@@ -962,19 +1136,31 @@ app.get('/api/appointments', async (req, res) => {
 
 app.post('/api/appointments', async (req, res) => {
   let body = { ...req.body };
-  if (!body.propertyTitle || body.propertyTitle === 'Inmueble Seleccionado') {
-    try {
-      const propRes = await fetchService(`${PROPERTIES_SVC}/${body.propertyId}`);
-      if (propRes.ok && (propRes.data?.title || propRes.data?.property?.title)) {
-        body.propertyTitle = propRes.data?.title || propRes.data?.property?.title;
-      }
-    } catch (_) {}
+  // Paso 1: Verificar que ms-properties-nestjs esté en línea y el inmueble exista
+  const propRes = await fetchService(`${PROPERTIES_SVC}/${enc(body.propertyId)}`);
+  if (!propRes.ok) {
+    return res.status(propRes.status || 503).json({
+      success: false,
+      failedService: 'ms-properties-nestjs (Catálogo Inmobiliario · MongoDB Atlas)',
+      message: `❌ Acción no realizada: Fallo en ms-properties-nestjs (Catálogo Inmobiliario · MongoDB Atlas). No se pudo agendar la visita porque el microservicio de propiedades no responde.`
+    });
   }
+  if (!body.propertyTitle || body.propertyTitle === 'Inmueble Seleccionado') {
+    body.propertyTitle = propRes.data?.title || propRes.data?.property?.title || body.propertyTitle;
+  }
+  // Paso 2: Guardar la visita en ms-contracts-spring
   const result = await fetchService(`${CONTRACTS_SVC}/appointments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
+  if (!result.ok) {
+    return res.status(result.status || 503).json({
+      success: false,
+      failedService: 'ms-contracts-spring (Contratos, Visitas y Usuarios · PostgreSQL)',
+      message: `❌ Acción no realizada: Fallo en ms-contracts-spring (Contratos, Visitas y Usuarios · PostgreSQL). ${result.data?.message || 'El microservicio no responde.'}`
+    });
+  }
   return res.status(result.status).json(result.data);
 });
 

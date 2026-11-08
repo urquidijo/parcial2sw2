@@ -13,18 +13,33 @@ const PORT = Number(process.env.BFF_PORT || 4000);
 const ERROR_CODES = { 400: 'BAD_REQUEST', 401: 'UNAUTHENTICATED', 403: 'FORBIDDEN', 404: 'NOT_FOUND', 409: 'CONFLICT' };
 
 // Llama a un microservicio reenviando el token de Keycloak del usuario; los errores REST se traducen a errores GraphQL.
+function identifyServiceName(url = '') {
+  const u = String(url);
+  if (u.includes(PROPERTIES_URL) || u.includes(':3001')) {
+    return 'ms-properties-nestjs (Catálogo Inmobiliario · MongoDB Atlas)';
+  }
+  if (u.includes(CONTRACTS_URL) || u.includes(':8081')) {
+    return 'ms-contracts-spring (Contratos, Visitas y Usuarios · PostgreSQL)';
+  }
+  return 'Microservicio del ecosistema';
+}
+
 async function rest(ctx, url, options = {}) {
   const headers = { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(ctx.authorization ? { Authorization: ctx.authorization } : {}) };
+  const svcName = identifyServiceName(url);
   let res;
   try {
     res = await fetch(url, { ...options, headers, body: options.body ? JSON.stringify(options.body) : undefined });
   } catch (err) {
-    throw new GraphQLError(`Microservicio no disponible: ${err.message}`, { extensions: { code: 'SERVICE_UNAVAILABLE' } });
+    throw new GraphQLError(`⚠️ El microservicio ${svcName} no responde en este momento. Inténtalo de nuevo más tarde.`, { extensions: { code: 'SERVICE_UNAVAILABLE', failedService: svcName } });
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const message = Array.isArray(data.message) ? data.message.join('. ') : (data.message || (res.status === 403 ? 'No tienes permiso para esta operación' : `Error ${res.status}`));
-    throw new GraphQLError(message, { extensions: { code: ERROR_CODES[res.status] || 'INTERNAL_SERVER_ERROR', http: { status: res.status } } });
+    if ([502, 503, 504].includes(res.status)) {
+      throw new GraphQLError(`⚠️ El microservicio ${svcName} no responde en este momento (detenido o fuera de línea). Inténtalo de nuevo más tarde.`, { extensions: { code: 'SERVICE_UNAVAILABLE', failedService: svcName, http: { status: 503 } } });
+    }
+    const message = Array.isArray(data.message) ? data.message.join('. ') : (data.message || (res.status === 403 ? 'No tienes permiso para esta operación' : `Error ${res.status} en ${svcName}`));
+    throw new GraphQLError(message, { extensions: { code: ERROR_CODES[res.status] || 'INTERNAL_SERVER_ERROR', failedService: svcName, http: { status: res.status } } });
   }
   return data;
 }
@@ -84,8 +99,10 @@ const resolvers = {
   },
 
   Mutation: {
-    createContract: async (_, { input }, ctx) =>
-      toContract(await rest(ctx, `${CONTRACTS_URL}/contracts`, { method: 'POST', body: input })),
+    createContract: async (_, { input }, ctx) => {
+      await rest(ctx, PROPERTIES_URL + '/' + encodeURIComponent(input.propertyId));
+      return toContract(await rest(ctx, CONTRACTS_URL + '/contracts', { method: 'POST', body: input }));
+    },
     cancelContract: async (_, { id, reason }, ctx) =>
       toContract(await rest(ctx, `${CONTRACTS_URL}/contracts/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: { reason } })),
     signContract: async (_, { id }, ctx) =>

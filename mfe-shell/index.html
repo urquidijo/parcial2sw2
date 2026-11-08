@@ -2691,6 +2691,8 @@
             renderPropiedades(propertiesCache);
           }
           window.dispatchEvent(new CustomEvent('habitat:refresh:properties'));
+        } else if (result.message) {
+          showToast(result.message);
         }
       } catch (e) {
         console.error('Error al cargar propiedades:', e);
@@ -2943,15 +2945,21 @@
 
     // CARGAR RESERVAS
     async function cargarReservasDesdeBD() {
+      const tbody = document.getElementById('reservasTableBody');
       try {
         // El gateway filtra por el token: el cliente recibe solo sus reservas.
         const res = await fetch(`${API_URL}/reservations`);
         const result = await res.json();
         if (result.success) {
           renderReservas(result.data);
+        } else {
+          const msg = result.message || 'El microservicio ms-billing-php (Pagos y Reservas · Amazon DynamoDB) no responde. Inténtalo de nuevo más tarde.';
+          if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--rose); font-weight:600;">${esc(msg)}</td></tr>`;
+          showToast(msg);
         }
       } catch (e) {
         console.error('Error al cargar reservas:', e);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--rose); font-weight:600;">⚠️ No se pudo conectar con el servidor de reservas: ${esc(e.message)}</td></tr>`;
       }
     }
 
