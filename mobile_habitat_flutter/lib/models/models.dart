@@ -4,6 +4,7 @@ class UserProfile {
   final String email;
   final String phone;
   final String originalRole;
+  final bool telegramLinked;
 
   const UserProfile({
     required this.id,
@@ -11,6 +12,7 @@ class UserProfile {
     required this.email,
     this.phone = '+591 70012345',
     this.originalRole = 'CLIENTE',
+    this.telegramLinked = false,
   });
 
   String get initials {
@@ -18,6 +20,24 @@ class UserProfile {
     if (parts.isEmpty || parts.first.isEmpty) return 'CL';
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+  }
+
+  UserProfile copyWith({
+    String? id,
+    String? name,
+    String? email,
+    String? phone,
+    String? originalRole,
+    bool? telegramLinked,
+  }) {
+    return UserProfile(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      originalRole: originalRole ?? this.originalRole,
+      telegramLinked: telegramLinked ?? this.telegramLinked,
+    );
   }
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
@@ -28,6 +48,7 @@ class UserProfile {
       email: (json['email'] ?? '').toString(),
       phone: (json['phone'] ?? '+591 70012345').toString(),
       originalRole: (json['role'] ?? 'CLIENTE').toString(),
+      telegramLinked: json['telegramLinked'] == true,
     );
   }
 
@@ -37,6 +58,7 @@ class UserProfile {
         'email': email,
         'phone': phone,
         'role': originalRole,
+        'telegramLinked': telegramLinked,
       };
 }
 

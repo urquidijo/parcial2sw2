@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -572,6 +571,52 @@ class ApiService extends ChangeNotifier {
           '¡Todo listo! Recibirás alertas instantáneas de tus reservas, visitas y contratos en este dispositivo.',
       category: 'PUSH_TEST',
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 6. VINCULACIÓN DE TELEGRAM (CLIENTES Y NOTIFICACIONES)
+  // ---------------------------------------------------------------------------
+  Future<Map<String, dynamic>> requestTelegramLink() async {
+    final res = await _authorizedRequest('POST', '/telegram/link');
+    final data = res['data'];
+    if (data is Map<String, dynamic>) return data;
+    throw Exception('No se pudo generar el enlace de Telegram.');
+  }
+
+  Future<bool> verifyTelegramLink(String code) async {
+    final res = await _authorizedRequest(
+      'POST',
+      '/telegram/link/verify',
+      body: {'code': code},
+    );
+    final data = res['data'];
+    final linked = data is Map && data['linked'] == true;
+    if (linked) {
+      if (_currentUser != null) {
+        _currentUser = _currentUser!.copyWith(telegramLinked: true);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('habitat_user', jsonEncode(_currentUser!.toJson()));
+        notifyListeners();
+      }
+      await NotificationService.instance.showPush(
+        title: 'Telegram vinculado',
+        body: 'Tu cuenta de cliente ahora recibe avisos directos en Telegram.',
+        category: 'TELEGRAM',
+      );
+    }
+    return linked;
+  }
+
+  Future<bool> unlinkTelegram() async {
+    final res = await _authorizedRequest('DELETE', '/telegram/link');
+    final ok = res['success'] == true;
+    if (ok && _currentUser != null) {
+      _currentUser = _currentUser!.copyWith(telegramLinked: false);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('habitat_user', jsonEncode(_currentUser!.toJson()));
+      notifyListeners();
+    }
+    return ok;
   }
 
   List<dynamic> _extractList(Map<String, dynamic> res) {
