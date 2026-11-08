@@ -1,5 +1,8 @@
-/* Tema Habitat Pro para Keycloak Login & Registro */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+/* ==========================================================================
+   Tema Habitat Pro para Keycloak 25 (Login & Registro — Diseño SaaS Moderno)
+   100% UI/CSS — Cero cambios de lógica ni plantillas FreeMarker
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
   --pf-v5-global--FontFamily--text: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -10,108 +13,403 @@
   --pf-v5-global--link--Color--hover: #1d4ed8;
 }
 
+/* 1. Fondo general limpio con destellos suaves estilo SaaS */
+html,
+body,
 body.kcBodyClass,
 .login-pf body,
 .pf-v5-c-login {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
   background:
-    radial-gradient(circle at 15% 20%, rgba(37, 99, 235, 0.12) 0%, transparent 45%),
-    radial-gradient(circle at 85% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 45%),
-    linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%) !important;
+    radial-gradient(circle at 12% 18%, rgba(37, 99, 235, 0.14) 0%, transparent 40%),
+    radial-gradient(circle at 88% 82%, rgba(14, 165, 233, 0.12) 0%, transparent 42%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%) !important;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(37, 99, 235, 0.14) 0%, transparent 40%),
+    radial-gradient(circle at 88% 82%, rgba(14, 165, 233, 0.12) 0%, transparent 42%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%) !important;
   color: #0f172a !important;
-  min-height: 100vh;
+  min-height: 100vh !important;
 }
 
-/* Ocultar fondo oscuro por defecto de PatternFly */
 .pf-v5-c-login {
-  background-image: none !important;
+  padding-top: 2rem !important;
+  padding-bottom: 2.5rem !important;
+  align-items: center !important;
 }
 
-/* Cabecera del realm "Habitat Pro" */
-#kc-header-wrapper,
-.pf-v5-c-login__header {
+.pf-v5-c-login__container {
+  max-width: 460px !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+  padding: 0 1rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  grid-template-columns: 1fr !important;
+}
+
+/* 2. Cabecera de marca con logo de Habitat Pro */
+.pf-v5-c-login__header,
+#kc-header {
+  width: 100% !important;
+  text-align: center !important;
+  margin-bottom: 1.25rem !important;
+  padding: 0 !important;
+}
+
+#kc-header-wrapper {
+  display: inline-flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.02em !important;
+  font-size: 1.35rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.03em !important;
   color: #0f172a !important;
   text-transform: none !important;
+  padding: 0 !important;
 }
 
-/* Tarjeta central de Login y Registro */
+/* Ícono de edificio azul de Habitat Pro arriba del título */
+#kc-header-wrapper::before {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background-color: #2563eb;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='2' width='16' height='20' rx='2' ry='2'/%3E%3Cpath d='M9 22v-4h6v4'/%3E%3Cpath d='M8 6h.01'/%3E%3Cpath d='M16 6h.01'/%3E%3Cpath d='M12 6h.01'/%3E%3Cpath d='M12 10h.01'/%3E%3Cpath d='M12 14h.01'/%3E%3Cpath d='M16 10h.01'/%3E%3Cpath d='M16 14h.01'/%3E%3Cpath d='M8 10h.01'/%3E%3Cpath d='M8 14h.01'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 23px 23px;
+  box-shadow: 0 10px 20px -5px rgba(37, 99, 235, 0.45);
+  margin-bottom: 0.2rem;
+}
+
+#kc-header-wrapper::after {
+  content: "Plataforma Inmobiliaria Cloud";
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #64748b;
+  letter-spacing: 0;
+  margin-top: -0.15rem;
+}
+
+/* Ocultar el título duplicado dentro de la tarjeta en Registro */
+.pf-v5-c-login__main #kc-header,
+.card-pf #kc-header {
+  display: none !important;
+}
+
+/* 3. Tarjeta principal (Login y Registro) — Sin doble padding */
 .pf-v5-c-login__main,
 .card-pf {
-  background: #ffffff !important;
-  border: 1px solid #e2e8f0 !important;
-  border-top: 4px solid #2563eb !important;
-  border-radius: 16px !important;
-  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.14), 0 4px 16px -2px rgba(15, 23, 42, 0.05) !important;
-  padding: 2rem 2.25rem !important;
+  width: 100% !important;
   max-width: 460px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-top: 4px solid #2563eb !important;
+  border-radius: 20px !important;
+  box-shadow:
+    0 20px 45px -12px rgba(15, 23, 42, 0.12),
+    0 4px 12px -2px rgba(15, 23, 42, 0.04) !important;
+  padding: 0 !important;
   margin: 0 auto !important;
+  overflow: hidden !important;
 }
 
+/* Cabecera interna ("Acceder a tu cuenta" / "Registro" + selector de idioma) */
 .pf-v5-c-login__main-header,
 .login-pf-header {
-  margin-bottom: 1.25rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.75rem !important;
+  padding: 1.75rem 2rem 0.75rem 2rem !important;
+  margin: 0 !important;
+  border-bottom: none !important;
 }
 
 #kc-page-title,
+.pf-v5-c-login__main-header .pf-v5-c-title,
 .pf-v5-c-title {
-  font-weight: 700 !important;
+  font-weight: 800 !important;
   font-size: 1.35rem !important;
+  line-height: 1.25 !important;
   color: #0f172a !important;
-  letter-spacing: -0.02em !important;
+  letter-spacing: -0.025em !important;
+  margin: 0 !important;
 }
 
-/* Campos de texto (Usuario, Contraseña, Nombre, Apellido, Email) */
-.pf-v5-c-form-control,
-input.form-control,
-input[type="text"],
-input[type="password"],
-input[type="email"] {
-  border-radius: 8px !important;
-  border: 1px solid #cbd5e1 !important;
-  background-color: #ffffff !important;
-  padding: 0.55rem 0.8rem !important;
-  font-size: 0.9rem !important;
-  color: #0f172a !important;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
-   --pf-v5-c-form-control--after--BorderBottomWidth: 0px !important;
+/* Selector de idioma ("Español") estilizado como píldora discreta */
+.pf-v5-c-login__main-header-utilities,
+#kc-locale {
+  margin: 0 !important;
 }
 
-.pf-v5-c-form-control:focus-within,
-input.form-control:focus,
-input[type="text"]:focus,
-input[type="password"]:focus,
-input[type="email"]:focus {
-  border-color: #2563eb !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16) !important;
-  outline: none !important;
+.pf-v5-c-menu-toggle,
+#kc-locale-dropdown a {
+  border-radius: 999px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  padding: 0.3rem 0.75rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  color: #475569 !important;
+  box-shadow: none !important;
 }
 
-/* Etiquetas de formulario */
+.pf-v5-c-menu-toggle::before,
+.pf-v5-c-menu-toggle::after {
+  border: none !important;
+}
+
+/* Cuerpo del formulario */
+.pf-v5-c-login__main-body,
+#kc-content,
+#kc-content-wrapper {
+  padding: 0.5rem 2rem 1.75rem 2rem !important;
+  margin: 0 !important;
+}
+
+/* Texto "* Campos requeridos" en Registro */
+.subtitle,
+.pf-v5-c-form__helper-text {
+  font-size: 0.78rem !important;
+  color: #64748b !important;
+  margin-bottom: 0.5rem !important;
+}
+
+/* Espaciado entre campos del formulario */
+.pf-v5-c-form,
+#kc-form-login,
+#kc-register-form {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.9rem !important;
+}
+
+.pf-v5-c-form__group,
+.form-group {
+  margin-bottom: 0 !important;
+}
+
+/* Etiquetas de cada campo */
 .pf-v5-c-form__label,
-label.control-label {
+.pf-v5-c-form__label-text,
+label.control-label,
+label {
   font-weight: 600 !important;
   font-size: 0.82rem !important;
   color: #334155 !important;
-  margin-bottom: 0.3rem !important;
+  margin-bottom: 0.35rem !important;
+  display: inline-block !important;
 }
 
-/* Botón primario (Iniciar sesión / Registrarse) */
+.pf-v5-c-form__label-required,
+.required {
+  color: #ef4444 !important;
+  margin-left: 2px !important;
+}
+
+/* 4. SOLUCIÓN AL DOBLE BORDE EN INPUTS DE KEYCLOAK V25 (PatternFly v5)
+   En PF5, .pf-v5-c-form-control es un contenedor <span> que envuelve al <input>.
+   Le damos el borde limpio SOLO al contenedor y dejamos el <input> interno transparente. */
+.pf-v5-c-form-control {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  background-color: #f8fafc !important;
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  padding: 0 !important;
+  min-height: 44px !important;
+  transition: all 0.18s ease !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03) !important;
+  --pf-v5-c-form-control--before--BorderTopWidth: 0px !important;
+  --pf-v5-c-form-control--before--BorderRightWidth: 0px !important;
+  --pf-v5-c-form-control--before--BorderBottomWidth: 0px !important;
+  --pf-v5-c-form-control--before--BorderLeftWidth: 0px !important;
+  --pf-v5-c-form-control--after--BorderBottomWidth: 0px !important;
+}
+
+.pf-v5-c-form-control::before,
+.pf-v5-c-form-control::after {
+  display: none !important;
+  border: none !important;
+}
+
+.pf-v5-c-form-control > input,
+.pf-v5-c-form-control input[type="text"],
+.pf-v5-c-form-control input[type="password"],
+.pf-v5-c-form-control input[type="email"] {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  width: 100% !important;
+  height: 42px !important;
+  padding: 0.55rem 0.9rem !important;
+  font-size: 0.92rem !important;
+  font-weight: 500 !important;
+  color: #0f172a !important;
+  border-radius: 10px !important;
+}
+
+/* Fallback por si algún input no está dentro de .pf-v5-c-form-control */
+input.form-control:not(.pf-v5-c-form-control input) {
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  background-color: #f8fafc !important;
+  height: 44px !important;
+  padding: 0.55rem 0.9rem !important;
+  font-size: 0.92rem !important;
+  color: #0f172a !important;
+}
+
+/* Estado Focus en inputs */
+.pf-v5-c-form-control:focus-within {
+  background-color: #ffffff !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3.5px rgba(37, 99, 235, 0.15) !important;
+}
+
+/* Autocompletado de Chrome sin fondo azul grisáceo feo */
+.pf-v5-c-form-control input:-webkit-autofill,
+.pf-v5-c-form-control input:-webkit-autofill:hover,
+.pf-v5-c-form-control input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #f8fafc inset !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-radius: 9px !important;
+}
+
+/* 5. Grupo de Contraseña + Botón del Ojo (integrados en una sola caja limpia) */
+.pf-v5-c-input-group {
+  display: flex !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  background-color: #f8fafc !important;
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  transition: all 0.18s ease !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03) !important;
+}
+
+.pf-v5-c-input-group:focus-within {
+  background-color: #ffffff !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3.5px rgba(37, 99, 235, 0.15) !important;
+}
+
+/* Quitar borde individual al form-control cuando está dentro de input-group */
+.pf-v5-c-input-group .pf-v5-c-form-control {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+/* Botón del ojo (mostrar/ocultar contraseña) */
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control,
+.pf-v5-c-button.pf-m-control {
+  background: transparent !important;
+  border: none !important;
+  border-left: 1px solid #e2e8f0 !important;
+  color: #64748b !important;
+  padding: 0 0.9rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+  --pf-v5-c-button--after--BorderWidth: 0px !important;
+}
+
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control::after,
+.pf-v5-c-button.pf-m-control::after {
+  display: none !important;
+  border: none !important;
+}
+
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control:hover {
+  background: #f1f5f9 !important;
+  color: #2563eb !important;
+}
+
+/* 6. Checkbox "Seguir conectado" y enlace "Volver a la identificación" */
+.pf-v5-c-check,
+.checkbox {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  margin-top: 0.15rem !important;
+}
+
+.pf-v5-c-check__input,
+.checkbox input[type="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  accent-color: #2563eb !important;
+  cursor: pointer !important;
+  margin: 0 !important;
+}
+
+.pf-v5-c-check__label,
+.checkbox label {
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  color: #475569 !important;
+  margin: 0 !important;
+  cursor: pointer !important;
+}
+
+#kc-form-options {
+  margin-bottom: 0.5rem !important;
+}
+
+#kc-form-options a {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.25rem !important;
+  font-size: 0.84rem !important;
+  font-weight: 600 !important;
+  color: #2563eb !important;
+  text-decoration: none !important;
+  padding: 0.25rem 0 !important;
+}
+
+#kc-form-options a:hover {
+  color: #1d4ed8 !important;
+  text-decoration: underline !important;
+}
+
+/* 7. Botón Primario ("Iniciar sesión" / "Regístrate") */
+#kc-form-buttons {
+  margin-top: 0.35rem !important;
+}
+
 #kc-login,
 input[type="submit"],
 .pf-v5-c-button.pf-m-primary,
 .btn-primary {
+  width: 100% !important;
+  height: 46px !important;
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
   border: 1px solid #1d4ed8 !important;
-  border-radius: 8px !important;
+  border-radius: 11px !important;
   color: #ffffff !important;
-  font-weight: 600 !important;
-  font-size: 0.92rem !important;
-  padding: 0.65rem 1.1rem !important;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25) !important;
-  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 0.95rem !important;
+  letter-spacing: -0.01em !important;
+  padding: 0.65rem 1.25rem !important;
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.4) !important;
+  transition: all 0.18s ease !important;
   cursor: pointer !important;
 }
 
@@ -121,33 +419,69 @@ input[type="submit"]:hover,
 .btn-primary:hover {
   background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%) !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35) !important;
+  box-shadow: 0 12px 24px -4px rgba(37, 99, 235, 0.5) !important;
 }
 
-/* Pie de tarjeta (enlace a Registro o Volver al Login) */
+#kc-login:active,
+input[type="submit"]:active,
+.pf-v5-c-button.pf-m-primary:active {
+  transform: translateY(0) !important;
+}
+
+/* 8. Pie de tarjeta ("¿Usuario nuevo? Regístrate") */
+.pf-v5-c-login__main-footer {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
 #kc-registration,
 .pf-v5-c-login__main-footer-band,
 .login-pf-signup {
   background: #f8fafc !important;
   border-top: 1px solid #e2e8f0 !important;
-  border-radius: 0 0 12px 12px !important;
-  padding: 0.9rem 1rem !important;
-  margin-top: 1.25rem !important;
-  font-size: 0.85rem !important;
+  border-radius: 0 !important;
+  padding: 1.1rem 2rem !important;
+  margin: 0 !important;
+  text-align: center !important;
+  font-size: 0.88rem !important;
   color: #64748b !important;
 }
 
+.pf-v5-c-login__main-footer-band-item {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
 #kc-registration a,
-.pf-v5-c-login__main-footer-band a,
-#kc-form-options a {
+.pf-v5-c-login__main-footer-band a {
   color: #2563eb !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
+  margin-left: 0.25rem !important;
   text-decoration: none !important;
 }
 
 #kc-registration a:hover,
-.pf-v5-c-login__main-footer-band a:hover,
-#kc-form-options a:hover {
+.pf-v5-c-login__main-footer-band a:hover {
+  color: #1d4ed8 !important;
   text-decoration: underline !important;
 }
 
+/* 9. Alertas de error / validación estilizadas */
+.pf-v5-c-alert,
+.alert {
+  border-radius: 10px !important;
+  padding: 0.75rem 1rem !important;
+  margin-bottom: 1rem !important;
+  font-size: 0.84rem !important;
+  border: 1px solid #fecaca !important;
+  background-color: #fef2f2 !important;
+  color: #991b1b !important;
+}
+
+.pf-v5-c-form__helper-text.pf-m-error,
+.kc-feedback-text {
+  color: #dc2626 !important;
+  font-size: 0.78rem !important;
+  font-weight: 500 !important;
+  margin-top: 0.25rem !important;
+}
