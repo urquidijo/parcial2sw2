@@ -3,6 +3,7 @@
  *
  * Qué se guarda para usar sin conexión:
  *  - La app (shell, microfrontends y librerías de CDN con versión fija).
+ *  - El modelo de IA que detecta objetos en las fotos (corre en el navegador, CU04).
  *  - El catálogo de inmuebles y la lista de ciudades/zonas: se pide a la red y, si no hay, se usa la última copia.
  *  - Las fotos de los inmuebles (máx. 200).
  * Qué NUNCA se guarda: escrituras (POST/PUT/PATCH/DELETE), sesión, IA, finanzas ni datos del personal.
@@ -121,6 +122,14 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (CDN_HOSTS.includes(url.hostname)) {
+    event.respondWith(cacheFirst(req, CDN_CACHE));
+    return;
+  }
+
+  // Pesos del modelo de IA del navegador (CU04, COCO-SSD): archivos estáticos que se sirven desde el
+  // microfrontend de inmuebles (otro dominio que el shell) y no cambian. Se guardan al usarlos la primera
+  // vez para que "Autocompletar desde fotos" funcione sin conexión.
+  if (url.pathname.includes('/models/') && /\.(json|bin)$/.test(url.pathname)) {
     event.respondWith(cacheFirst(req, CDN_CACHE));
     return;
   }
