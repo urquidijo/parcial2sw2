@@ -1647,6 +1647,16 @@
             <div id="aiExecutiveReport" style="font-size:0.88rem; line-height:1.6; background:#fafafa; padding:0.9rem 1rem; border-radius:6px; border:1px solid var(--border);"></div>
           </div>
 
+          <!-- Columnas del reporte: se eligen y ordenan aquí; el PDF y el Excel salen igual que la tabla -->
+          <div id="aiColumnBar" class="hidden" style="display:flex; flex-direction:column; gap:0.5rem; padding:0.75rem 1rem; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+              <span style="font-size:0.84rem; font-weight:600;">Columnas del reporte</span>
+              <span class="hint" style="margin:0;">Arrastra o usa las flechas para ordenar. El PDF y el Excel salen con estas columnas.</span>
+            </div>
+            <div id="aiColumnChips" style="display:flex; flex-wrap:wrap; gap:0.4rem;"></div>
+            <div id="aiHiddenColumns" style="display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;"></div>
+          </div>
+
           <div class="data-table-wrapper">
             <table class="data-table">
               <thead id="aiTableHead"></thead>
@@ -3248,6 +3258,8 @@
       const tableBody = document.getElementById('aiTableBody');
 
       aiLastReport = null;
+      aiColumnOrder = [];
+      document.getElementById('aiColumnBar').classList.add('hidden');
       document.getElementById('aiReportTitle').innerText = 'Resumen';
       document.getElementById('aiPoweredByBadge').innerText = '';
       reportBox.innerHTML = '<span class="muted">Generando el reporte… consultando los datos.</span>';
@@ -3280,21 +3292,93 @@
           tableBody.innerHTML = `<tr><td class="muted" style="text-align:center; padding:2rem;">Este reporte no tiene tabla de datos.</td></tr>`;
           return;
         }
-        tableHead.innerHTML = '<tr>' + result.columnas.map(c => `<th>${esc(c.label)}</th>`).join('') + '</tr>';
-        tableBody.innerHTML = result.filas
-          .map(row => '<tr>' + result.columnas.map(c => `<td>${esc(formatearCelda(row[c.key], c.key))}</td>`).join('') + '</tr>')
-          .join('');
+        aiColumnOrder = result.columnas.map(c => c.key);
+        renderTablaReporte();
       } catch (e) {
         reportBox.innerHTML = `<span style="color:var(--rose);">Sin conexión con el servicio de reportes: ${esc(e.message)}</span>`;
       }
+    }
+
+    // ---- Columnas elegidas por el usuario (orden y visibilidad). Las usan la tabla, el PDF y el Excel ----
+    let aiColumnOrder = [];
+    let aiDragKey = null;
+
+    function columnasVisiblesReporte(report = aiLastReport) {
+      if (!report) return [];
+      const porClave = new Map(report.columnas.map(c => [c.key, c]));
+      return aiColumnOrder.map(k => porClave.get(k)).filter(Boolean);
+    }
+
+    function renderTablaReporte() {
+      const r = aiLastReport;
+      if (!r || !r.filas.length) return;
+      const visibles = columnasVisiblesReporte();
+      const ocultas = r.columnas.filter(c => !aiColumnOrder.includes(c.key));
+      const btnIcono = (icon, title, onclick, disabled) =>
+        `<button type="button" title="${title}" aria-label="${title}" onclick="${onclick}" ${disabled ? 'disabled' : ''}
+           style="display:inline-grid; place-items:center; width:20px; height:20px; padding:0; border:0; background:none; color:var(--text-muted); cursor:${disabled ? 'default' : 'pointer'}; opacity:${disabled ? 0.35 : 1}; border-radius:4px;">${HabitatIcons.html(icon, 14)}</button>`;
+
+      document.getElementById('aiColumnBar').classList.remove('hidden');
+      document.getElementById('aiColumnChips').innerHTML = visibles.map((c, i) => `
+        <span draggable="true" data-key="${esc(c.key)}"
+              ondragstart="aiDragKey=this.dataset.key; this.style.opacity=0.5;" ondragend="this.style.opacity=1;"
+              ondragover="event.preventDefault();" ondrop="event.preventDefault(); soltarColumnaReporte(this.dataset.key);"
+              style="display:inline-flex; align-items:center; gap:0.15rem; padding:0.2rem 0.3rem 0.2rem 0.55rem; border:1px solid var(--border); border-radius:6px; background:var(--bg-alt); font-size:0.8rem; cursor:grab; user-select:none;">
+          <span style="margin-right:0.2rem;">${esc(c.label)}</span>
+          ${btnIcono('ChevronLeft', 'Mover a la izquierda', `moverColumnaReporte('${esc(c.key)}', -1)`, i === 0)}
+          ${btnIcono('ChevronRight', 'Mover a la derecha', `moverColumnaReporte('${esc(c.key)}', 1)`, i === visibles.length - 1)}
+          ${btnIcono('X', 'Quitar columna', `quitarColumnaReporte('${esc(c.key)}')`, visibles.length === 1)}
+        </span>`).join('');
+      document.getElementById('aiHiddenColumns').innerHTML = (ocultas.length ? `<span class="hint" style="margin:0;">Quitadas:</span>` +
+        ocultas.map(c => `<button type="button" class="filter-chip" onclick="agregarColumnaReporte('${esc(c.key)}')">${HabitatIcons.html('Plus', 14)}${esc(c.label)}</button>`).join('') : '') +
+        (ocultas.length || aiColumnOrder.join() !== r.columnas.map(c => c.key).join()
+          ? `<button type="button" class="btn-secondary btn" style="margin-left:auto; padding:0.25rem 0.6rem; font-size:0.78rem;" onclick="restablecerColumnasReporte()">${HabitatIcons.html('RotateCcw', 14)}Restablecer</button>` : '');
+
+      document.getElementById('aiTableHead').innerHTML = '<tr>' + visibles.map(c => `<th>${esc(c.label)}</th>`).join('') + '</tr>';
+      document.getElementById('aiTableBody').innerHTML = r.filas
+        .map(row => '<tr>' + visibles.map(c => `<td>${esc(formatearCelda(row[c.key], c.key))}</td>`).join('') + '</tr>')
+        .join('');
+    }
+
+    function moverColumnaReporte(key, delta) {
+      const i = aiColumnOrder.indexOf(key), j = i + delta;
+      if (i < 0 || j < 0 || j >= aiColumnOrder.length) return;
+      [aiColumnOrder[i], aiColumnOrder[j]] = [aiColumnOrder[j], aiColumnOrder[i]];
+      renderTablaReporte();
+    }
+
+    function soltarColumnaReporte(destino) {
+      if (!aiDragKey || aiDragKey === destino) return;
+      const desde = aiColumnOrder.indexOf(aiDragKey);
+      aiColumnOrder.splice(desde, 1);
+      aiColumnOrder.splice(aiColumnOrder.indexOf(destino) + (desde <= aiColumnOrder.indexOf(destino) ? 1 : 0), 0, aiDragKey);
+      aiDragKey = null;
+      renderTablaReporte();
+    }
+
+    function quitarColumnaReporte(key) {
+      if (aiColumnOrder.length <= 1) return;
+      aiColumnOrder = aiColumnOrder.filter(k => k !== key);
+      renderTablaReporte();
+    }
+
+    function agregarColumnaReporte(key) {
+      if (!aiColumnOrder.includes(key)) aiColumnOrder.push(key);
+      renderTablaReporte();
+    }
+
+    function restablecerColumnasReporte() {
+      aiColumnOrder = aiLastReport.columnas.map(c => c.key);
+      renderTablaReporte();
     }
 
     // ---- Exportación del reporte (CU20): datos comunes al PDF y al Excel ----
     const esMonedaReporte = (key) => /_usd$/.test(key);
 
     // Una columna es numérica si todos sus valores con dato son números (se alinea a la derecha y se suma si es moneda).
+    // Se exportan las columnas que el usuario dejó en la tabla, en su orden.
     function columnasReporte(report) {
-      return report.columnas.map(c => {
+      return columnasVisiblesReporte(report).map(c => {
         const valores = report.filas.map(f => f[c.key]).filter(v => v !== null && v !== undefined && v !== '');
         const numerica = valores.length > 0 && valores.every(v => typeof v === 'number');
         const moneda = numerica && esMonedaReporte(c.key);
@@ -3323,7 +3407,6 @@
       const cols = columnasReporte(r);
       const m = metaReporte(r);
       const hayTotales = r.filas.length > 1 && cols.some(c => c.moneda);
-      const resumen = String(r.resumen || '').split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
 
       const tabla = r.filas.length ? `
         <table>
@@ -3353,9 +3436,6 @@
           dl div:last-child { border-right: 0; }
           dt { font-size: 8pt; color: #71717a; }
           dd { margin: 1pt 0 0; font-weight: 500; }
-          h2 { font-size: 10.5pt; font-weight: 600; margin: 0 0 5pt; }
-          .resumen { margin-bottom: 16pt; padding-left: 10pt; border-left: 3px solid #1d4ed8; }
-          .resumen p { margin: 0 0 6pt; }
           table { width: 100%; border-collapse: collapse; font-size: 9pt; }
           thead { display: table-header-group; }
           tfoot { display: table-row-group; }
@@ -3380,8 +3460,6 @@
           <div><dt>Fecha</dt><dd>${esc(m.fecha)}, ${esc(m.hora)}</dd></div>
           <div><dt>Filas</dt><dd>${esc(m.filas)}</dd></div>
         </dl>
-        <h2>Resumen</h2>
-        <div class="resumen">${resumen}</div>
         ${tabla}
         ${r.recortado ? `<p class="nota">Se muestran las primeras ${r.filas.length} de ${r.totalFilas} filas.</p>` : ''}
         <footer><span>Habitat Pro · Reporte generado a partir de los datos del sistema</span><span>${esc(m.fecha)}, ${esc(m.hora)}</span></footer>
@@ -3458,17 +3536,8 @@
         hoja.getCell(4, 1).border = { bottom: { style: 'medium', color: { argb: BRAND } } };
         unir(4);
 
-        // Resumen (celda combinada con ajuste de texto; alto estimado según su largo)
-        hoja.getCell(6, 1).value = 'Resumen';
-        hoja.getCell(6, 1).font = { name: FONT, size: 11, bold: true };
-        const resumen = String(r.resumen || '').trim();
-        hoja.getCell(7, 1).value = resumen;
-        hoja.getCell(7, 1).font = { name: FONT, size: 10 };
-        hoja.getCell(7, 1).alignment = { wrapText: true, vertical: 'top' };
-        unir(7);
-
-        // Tabla de datos
-        const filaEncabezado = 9;
+        // Tabla de datos (el resumen en texto se queda en la web; el archivo lleva solo los datos)
+        const filaEncabezado = 6;
         const encabezado = hoja.getRow(filaEncabezado);
         cols.forEach((c, i) => {
           const celda = encabezado.getCell(i + 1);
@@ -3522,8 +3591,6 @@
           const largos = [c.label.length, ...r.filas.map(f => formatearCelda(f[c.key], c.key).length)];
           hoja.getColumn(i + 1).width = Math.min(45, Math.max(10, Math.max(...largos) + 3));
         });
-        const anchoTotal = cols.reduce((s, _, i) => s + hoja.getColumn(i + 1).width, 0);
-        hoja.getRow(7).height = Math.min(300, Math.max(30, Math.ceil(resumen.length / Math.max(anchoTotal * 1.1, 40)) * 14 + (resumen.split('\n').length - 1) * 14));
         hoja.autoFilter = { from: { row: filaEncabezado, column: 1 }, to: { row: ultimaFilaDatos, column: n } };
         hoja.views = [{ state: 'frozen', ySplit: filaEncabezado, showGridLines: false }];
         hoja.pageSetup.printTitlesRow = `${filaEncabezado}:${filaEncabezado}`;
