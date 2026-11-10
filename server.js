@@ -1742,6 +1742,7 @@ const GATEWAY_ARCHITECTURE = {
   layers: [
     { name: 'Saga orquestada', path: 'server.js · POST /api/reservations', items: ['Bloquea el inmueble (ms-properties) → cobra las arras (ms-billing) → pre-contrato (ms-contracts)', 'Si un paso falla, compensa en orden inverso (reembolso y liberación)'] },
     { name: 'CQRS: modelo de lectura', path: 'bi/read-model.js · GET /api/bi/overview', items: ['Cruza MongoDB + PostgreSQL + DynamoDB en un solo resumen para el dashboard, los reportes y el monitor'] },
+    { name: 'Orquestación Cloud-Native (Kubernetes)', path: 'k8s/', items: ['Namespace habitat-pro, Deployments con auto-healing (liveness/readiness), balanceo por Service ClusterIP, Ingress NGINX y autoescalado HPA elástico'] },
     { name: 'Idempotencia', path: 'idempotency/middleware.js', items: ['Idempotency-Key con registro en DynamoDB (TTL 24 h): un reintento no duplica reservas ni cobros'] },
     { name: 'BFF GraphQL', path: 'bff-graphql-gateway/', items: ['El ERP Angular consulta contratos, visitas y empleados en una sola petición'] },
     { name: 'IA', path: 'ai/ + mcp-habitat-server/', items: ['Reportes (CU20), monitor (CU21) y asistente (CU05) con Claude; herramientas MCP de solo lectura'] },

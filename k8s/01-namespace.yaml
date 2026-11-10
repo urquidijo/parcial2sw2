@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: habitat-pro
+  labels:
+    app.kubernetes.io/name: habitat-pro
+    app.kubernetes.io/environment: production
+
