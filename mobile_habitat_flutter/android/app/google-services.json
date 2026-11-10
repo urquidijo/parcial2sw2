@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "705147963252",
+    "project_id": "habitatpro-ce13a",
+    "storage_bucket": "habitatpro-ce13a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:705147963252:android:d4194de9a2d13a6db8ce21",
+        "android_client_info": {
+          "package_name": "pro.habitat.habitat_pro_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDhgaizNUNO9akg56d1CiQ1x5BHTDb5GRg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

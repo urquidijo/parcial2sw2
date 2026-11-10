@@ -36,6 +36,11 @@ const PUBLIC_ROUTES = [
   { method: 'POST', pattern: /^\/api\/ai\/monitor\/scheduled$/ },
   // Clave pública VAPID (CU06): el navegador la necesita para suscribirse; no es secreta
   { method: 'GET', pattern: /^\/api\/push\/public-key$/ },
+  // Estado y diagnóstico de Push (Web + FCM Mobile)
+  { method: 'GET', pattern: /^\/api\/push\/status$/ },
+  // Registro y prueba de tokens FCM v1 desde la app móvil Android
+  { method: 'POST', pattern: /^\/api\/push\/fcm-token$/ },
+  { method: 'POST', pattern: /^\/api\/push\/test-fcm$/ },
 ];
 
 app.use('/api', async (req, res, next) => {
@@ -609,8 +614,9 @@ app.post('/api/reservations', requireRoles('CLIENTE', 'ADMIN'), async (req, res)
     const telegram = await notifyReservationConfirmed(reservation);
     // CU14: y al Telegram del cliente, si lo vinculó
     const telegramClient = await notifyClientReservation(reservation, clientId);
-    // CU06: aviso push al cliente (en segundo plano)
-    pushInBackground(clientId, {
+    // CU06 / FCM: aviso push al cliente tanto a la Web como a la App Móvil
+    const userTargetIds = [clientId, req.user?.sub, req.user?.preferred_username, req.user?.email, userName].filter(Boolean);
+    pushInBackground(userTargetIds, {
       title: 'Reserva confirmada',
       body: `${propTitle}: arras de $${Number(amount).toLocaleString('es-BO')} USD cobradas. Tienes 48 h para formalizar el contrato.`,
       url: '/#reservas', tag: `reserva-${reservation.reservationId}`
@@ -1079,6 +1085,19 @@ app.post('/api/payments', requireRoles('FINANZAS', 'ADMIN'), async (req, res) =>
     }
   }
 
+  // CU06 / FCM: Enviar aviso push al cliente tanto a la Web como a la App Móvil
+  const targetUser = contract.clientId || contract.userId;
+  if (targetUser) {
+    pushInBackground(targetUser, {
+      title: isRent ? '💰 Pago de alquiler registrado' : '🎉 ¡Compra finalizada con éxito!',
+      body: isRent
+        ? `Se registró el pago de la cuota ${rentPeriod} para ${contract.propertyTitle || 'tu inmueble'}.`
+        : `Se registró el saldo de ${contract.propertyTitle || 'tu inmueble'}. ¡La propiedad ya es tuya!`,
+      url: '/#contratos',
+      tag: `pago-${contract.contractNumber}`
+    });
+  }
+
   return res.status(201).json({
     success: true,
     message: isRent
@@ -1475,10 +1494,12 @@ async function serviceAuthorization() {
 }
 
 // -------------------------------------------------------------
-// NOTIFICACIONES PUSH (CU06): avisos de reservas al celular o la PC del cliente, aunque la app esté cerrada
+// NOTIFICACIONES PUSH (CU06 / FCM v1): avisos de reservas al celular o la PC del cliente
+// Web Push (Service Worker / VAPID) + Mobile Push (Firebase Cloud Messaging v1)
 // -------------------------------------------------------------
 const { createPush } = require('./push/notify');
 const push = createPush({ contractsSvc: CONTRACTS_SVC, serviceAuthorization });
+const { fcmService } = require('./push/fcm-service');
 
 app.get('/api/push/public-key', (req, res) => {
   if (!push.enabled) return res.status(503).json({ success: false, message: 'Las notificaciones no están configuradas en el servidor.' });
@@ -1498,19 +1519,90 @@ app.delete('/api/push/subscription', async (req, res) => {
   return passthrough(res, await fetchService(`${CONTRACTS_SVC}/users/me/push?endpoint=${enc(String(req.query.endpoint || ''))}`, { method: 'DELETE' }));
 });
 
-// Aviso de prueba al propio usuario (botón "Probar aviso").
+app.get('/api/push/status', (req, res) => {
+  return res.json({
+    success: true,
+    fcm: fcmService.getStatus(),
+    webPushEnabled: push.enabled
+  });
+});
+
+// Registrar Token FCM desde la App Móvil Flutter
+app.post('/api/push/fcm-token', async (req, res) => {
+  const { token, userId, username, email } = req.body || {};
+  if (!token) {
+    return res.status(400).json({ success: false, message: 'Falta el token FCM' });
+  }
+
+  const effectiveUserId = req.user?.sub || userId;
+  const ids = [
+    effectiveUserId,
+    req.user?.preferred_username,
+    req.user?.email,
+    username,
+    email
+  ].filter(Boolean);
+
+  fcmService.registerToken(ids.length > 0 ? ids : [token], token);
+  return res.json({ success: true, message: 'Token FCM registrado exitosamente en el backend', identifiers: ids });
+});
+
+// Prueba directa de Push FCM hacia la App Móvil
+app.post('/api/push/test-fcm', async (req, res) => {
+  const { token, userId, title, body } = req.body || {};
+  const testTitle = title || '🔔 Habitat Pro Mobile Push';
+  const testBody = body || 'Prueba de notificación push en tiempo real vía Firebase Cloud Messaging v1.';
+
+  if (token) {
+    const ok = await fcmService.sendToToken(token, { title: testTitle, body: testBody, data: { test: 'true' } });
+    return res.json({ success: ok, message: ok ? 'Push enviado exitosamente al token FCM' : 'Fallo en envío FCM', error: fcmService.lastError });
+  }
+
+  const targetId = req.user?.sub || userId;
+  if (!targetId) {
+    return res.status(400).json({ success: false, message: 'Indica token o userId para enviar la prueba FCM' });
+  }
+
+  const result = await fcmService.sendToUser(targetId, { title: testTitle, body: testBody, data: { test: 'true' } });
+  return res.json({ success: result.sent > 0, ...result, fcmStatus: fcmService.getStatus() });
+});
+
+// Aviso de prueba al propio usuario (botón "Probar aviso" Web + Mobile).
 app.post('/api/push/test', async (req, res) => {
   const me = await callerProfile();
   if (!me) return res.status(502).json({ success: false, message: 'No se pudo obtener tu perfil.' });
   const result = await push.sendToUser(me.id, { title: 'Habitat Pro', body: 'Los avisos están activos en este dispositivo.', url: '/', tag: 'habitat-test' });
-  return res.json({ success: true, data: result });
+  const fcmResult = await fcmService.sendToUser([req.user?.sub, me.id, me.email, req.user?.preferred_username].filter(Boolean), {
+    title: '🔔 Habitat Pro Mobile',
+    body: '¡Notificaciones push de Firebase activas en tu celular!',
+    data: { url: '/', tag: 'habitat-test' }
+  });
+  return res.json({ success: true, data: result, fcm: fcmResult });
 });
 
-// Un aviso que falla nunca frena la operación que lo originó: se envía en segundo plano.
-function pushInBackground(userId, payload) {
-  push.sendToUser(userId, payload)
-    .then((r) => { if (r.sent) console.log(`🔔 [CU06] "${payload.title}" enviado a ${r.sent} dispositivo(s)`); })
-    .catch(() => {});
+// Un aviso que falla nunca frena la operación que lo originó: se envía en segundo plano tanto a Web Push como a Mobile Push (FCM).
+function pushInBackground(userOrIds, payload) {
+  const ids = (Array.isArray(userOrIds) ? userOrIds : [userOrIds]).filter(Boolean);
+  const primaryId = ids[0];
+
+  // 1. Web Push (Service Worker / navegador)
+  if (primaryId) {
+    push.sendToUser(primaryId, payload)
+      .then((r) => { if (r.sent) console.log(`🔔 [CU06 Web] "${payload.title}" enviado a ${r.sent} navegador(es)`); })
+      .catch(() => {});
+  }
+
+  // 2. Mobile Push (FCM v1 a dispositivo móvil Android / iOS)
+  fcmService.sendToUser(ids, {
+    title: payload.title,
+    body: payload.body,
+    data: {
+      url: payload.url || '/',
+      tag: payload.tag || ''
+    }
+  }).then((r) => {
+    if (r && r.sent) console.log(`📱 [FCM Mobile] "${payload.title}" enviado a ${r.sent} dispositivo(s) móvil(es)`);
+  }).catch((err) => console.warn(`⚠️ [FCM Mobile] Error: ${err.message}`));
 }
 
 // Recordatorio: reservas activas a las que les quedan menos de 6 h (una sola vez por reserva).

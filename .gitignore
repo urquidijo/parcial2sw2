@@ -119,3 +119,7 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 ms-ml-python/artifacts/
+
+# Firebase Service Account (Llaves privadas de administración)
+firebase-service-account.json
+

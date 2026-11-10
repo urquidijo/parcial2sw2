@@ -58,6 +58,7 @@ class ApiService extends ChangeNotifier {
         if (_refreshToken != null) {
           await _refreshAccessToken();
         }
+        await syncFcmTokenWithServer();
       }
     } catch (e) {
       debugPrint('[ApiService] Error restaurando sesión: $e');
@@ -182,6 +183,8 @@ class ApiService extends ChangeNotifier {
     }
     await prefs.setString('habitat_user', jsonEncode(profile.toJson()));
     notifyListeners();
+
+    await syncFcmTokenWithServer();
 
     await NotificationService.instance.showPush(
       title: 'Hola, ${profile.name}',
@@ -624,6 +627,63 @@ class ApiService extends ChangeNotifier {
     if (d is List) return d;
     if (d is Map && d['data'] is List) return d['data'] as List;
     return const [];
+  }
+
+  /// Registra el token FCM del dispositivo en el backend para recibir notificaciones
+  /// push en tiempo real cuando se realicen compras o reservas desde la Web.
+  Future<void> syncFcmTokenWithServer() async {
+    final token = NotificationService.instance.fcmToken;
+    if (token == null || token.isEmpty) return;
+    try {
+      final jwt = _accessToken != null ? _decodeJwtPayload(_accessToken!) : <String, dynamic>{};
+      final body = <String, dynamic>{
+        'token': token,
+        'userId': _currentUser?.id ?? jwt['sub'],
+        'email': _currentUser?.email ?? jwt['email'],
+        'username': _currentUser?.name ?? jwt['preferred_username'] ?? jwt['name'],
+      };
+
+      if (isLoggedIn) {
+        await _authorizedRequest('POST', '/push/fcm-token', body: body);
+      } else {
+        await http.post(
+          Uri.parse('${AppConfig.apiGatewayUrl}/push/fcm-token'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        );
+      }
+      debugPrint('[ApiService] Token FCM sincronizado con el backend (${body['userId']})');
+    } catch (e) {
+      debugPrint('[ApiService] Aviso: No se pudo registrar token FCM en backend: $e');
+    }
+  }
+
+  /// Envía un aviso push de prueba a través de Firebase FCM v1
+  Future<bool> sendTestFcmPush() async {
+    final token = NotificationService.instance.fcmToken;
+    if (token == null) return false;
+    try {
+      final jwt = _accessToken != null ? _decodeJwtPayload(_accessToken!) : <String, dynamic>{};
+      final body = {
+        'token': token,
+        'userId': _currentUser?.id ?? jwt['sub'],
+        'title': '🔔 ¡Notificación FCM Exitosa!',
+        'body': 'Habitat Pro Mobile está sincronizado con el backend y listo para recibir alertas de compras y reservas.',
+      };
+      final res = await http.post(
+        Uri.parse('${AppConfig.apiGatewayUrl}/push/test-fcm'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return data['success'] == true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[ApiService] Error enviando test push: $e');
+      return false;
+    }
   }
 }
 

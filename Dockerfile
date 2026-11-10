@@ -7,6 +7,7 @@ COPY package*.json ./
 RUN npm install --omit=dev && npm cache clean --force
 
 COPY server.js ./
+COPY firebase-service-account.json* ./
 COPY ai ./ai
 COPY bi ./bi
 COPY idempotency ./idempotency

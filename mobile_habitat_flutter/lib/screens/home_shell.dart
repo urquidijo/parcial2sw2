@@ -26,10 +26,17 @@ class _HomeShellState extends State<HomeShell> {
     super.initState();
     _loadProperties();
     NotificationService.instance.addListener(_onNotificationsChanged);
+    // Asegurar que el token FCM del celular quede registrado en el backend al abrir la pantalla principal
+    ApiService.instance.syncFcmTokenWithServer();
   }
 
   void _onNotificationsChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+      if (NotificationService.instance.fcmToken != null) {
+        ApiService.instance.syncFcmTokenWithServer();
+      }
+    }
   }
 
   @override
@@ -259,6 +266,107 @@ class _HomeShellState extends State<HomeShell> {
                   ),
                   icon: const Icon(Icons.notifications_active_rounded, size: 18),
                   label: const Text('Enviar notificación Push de prueba'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Tarjeta de Token FCM de Firebase
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.local_fire_department_rounded,
+                          color: Color(0xFFEA580C),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        const Expanded(
+                          child: Text(
+                            'Firebase Cloud Messaging (FCM)',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                        if (NotificationService.instance.fcmToken != null)
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(Icons.copy_rounded, size: 16),
+                            tooltip: 'Copiar Token FCM',
+                            onPressed: () {
+                              Clipboard.setData(
+                                ClipboardData(
+                                  text: NotificationService.instance.fcmToken!,
+                                ),
+                              );
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Token FCM copiado para probar en Firebase Console'),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      NotificationService.instance.fcmToken != null
+                          ? 'Token FCM vinculado con el backend. Cuando compres o reserves desde la Web, te notificará aquí en tiempo real.'
+                          : 'Conectando con Firebase Messaging...',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    if (NotificationService.instance.fcmToken != null) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Enviando notificación push de prueba desde el backend...'),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                            final ok = await ApiService.instance.sendTestFcmPush();
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  ok
+                                      ? '✅ Notificación push enviada. Revisa tu barra de notificaciones.'
+                                      : '⚠️ El servidor no pudo enviar la notificación. Verifica la conexión.',
+                                ),
+                                backgroundColor: ok ? const Color(0xFF10B981) : Colors.red,
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.send_to_mobile_rounded, size: 16),
+                          label: const Text('Probar Push desde Backend'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFEA580C),
+                            side: const BorderSide(color: Color(0xFFFDBA74)),
+                            visualDensity: VisualDensity.compact,
+                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(height: 10),

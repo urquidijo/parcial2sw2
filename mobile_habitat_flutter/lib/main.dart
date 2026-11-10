@@ -6,6 +6,9 @@ import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  NotificationService.instance.onTokenRefreshed = () {
+    ApiService.instance.syncFcmTokenWithServer();
+  };
   await NotificationService.instance.init();
   await ApiService.instance.restoreSession();
   runApp(const HabitatProMobileApp());

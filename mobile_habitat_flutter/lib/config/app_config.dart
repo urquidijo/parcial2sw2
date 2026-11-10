@@ -3,6 +3,8 @@ class AppConfig {
   static const String apiGatewayUrl =
       'https://api-gateway-production-c3ed.up.railway.app/api';
 
+  static String get apiBaseUrl => apiGatewayUrl;
+
   static const String keycloakBaseUrl =
       'https://keycloak-production-f968.up.railway.app';
 
